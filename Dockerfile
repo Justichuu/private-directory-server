@@ -1,4 +1,4 @@
-FROM node:22-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -8,7 +8,7 @@ COPY test ./test
 COPY public ./public
 RUN npm run build
 
-FROM node:22-alpine AS runtime
+FROM node:26-alpine AS runtime
 WORKDIR /app
 ENV HOST=0.0.0.0 PORT=8000 DIRECTORY_ROOT=/shared
 COPY --from=build --chown=node:node /app/dist ./dist
