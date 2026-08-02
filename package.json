@@ -1,0 +1,27 @@
+{
+  "name": "private-directory-server",
+  "version": "1.1.0",
+  "description": "A secure local directory browser with previews, streaming, and optional uploads.",
+  "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Justichuu/private-directory-server.git"
+  },
+  "keywords": ["file-server", "local-network", "typescript", "self-hosted", "file-sharing"],
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.client.json",
+    "start": "npm run build && node dist/src/server.js",
+    "dev": "npm start",
+    "test": "npm run build && node --test dist/test/**/*.test.js",
+    "check": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit",
+    "package": "npm run build && node dist/scripts/package-release.js"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.2"
+  }
+}

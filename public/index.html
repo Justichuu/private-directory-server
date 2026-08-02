@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <meta name="description" content="A secure, private browser for files shared from your own computer.">
+    <title>Private Directory Server</title>
+    <link rel="stylesheet" href="/assets/app.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <div><p class="eyebrow">PRIVATE FILE ACCESS</p><h1>Private Directory Server</h1></div>
+        <button id="logout" class="quiet" type="button" hidden>Lock</button>
+        <p class="subtitle">Browse, preview, and download files shared from this computer.</p>
+      </header>
+
+      <section id="loginPanel" class="panel login" hidden>
+        <h2>Enter access token</h2>
+        <p>This server requires its private token before showing shared files.</p>
+        <form id="loginForm"><label for="token">Access token</label><div class="form-row"><input id="token" name="token" type="password" autocomplete="current-password" required><button type="submit">Unlock</button></div></form>
+        <p id="loginError" class="error-text" role="alert"></p>
+      </section>
+
+      <section id="browser" hidden>
+        <div class="toolbar">
+          <form id="searchForm" class="search"><label class="sr-only" for="search">Search this directory</label><input id="search" type="search" minlength="2" placeholder="Search this directory…"><button type="submit">Search</button></form>
+          <label id="uploadButton" class="upload quiet" hidden>Upload<input id="upload" type="file" hidden></label>
+        </div>
+        <nav id="breadcrumbs" class="breadcrumbs" aria-label="Current directory"></nav>
+        <section aria-live="polite">
+          <div id="status" class="status">Preparing directory…</div>
+          <div id="items" class="items" hidden></div>
+        </section>
+      </section>
+    </main>
+
+    <dialog id="previewDialog">
+      <div class="dialog-head"><strong id="previewTitle"></strong><button id="closePreview" class="quiet" type="button">Close</button></div>
+      <div id="previewContent" class="preview-content"></div>
+    </dialog>
+    <script src="/assets/app.js" defer></script>
+  </body>
+</html>
