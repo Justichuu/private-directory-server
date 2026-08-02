@@ -15,7 +15,7 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-node@v5
         with:
           node-version: 22
@@ -40,7 +40,7 @@ jobs:
       - name: Stop Docker verification container
         if: always() && matrix.os == 'ubuntu-latest'
         run: docker rm --force private-directory-server-ci 2>/dev/null || true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: matrix.os == 'ubuntu-latest'
         with:
           name: private-directory-server
