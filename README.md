@@ -17,7 +17,7 @@ This is openly a vibe-coded project: it is being shaped through human direction,
 2. Double-click `gui\build.cmd` once. It compiles a small desktop app using tools already built into Windows — nothing extra to install.
 3. Double-click the new `Private Directory Server.exe`. The first time, a small window tells you where to find it: **Windows hides new tray icons by default** — click the `^` arrow near the clock to reveal it. Right-click the icon and choose **Start Server**; it asks you to browse to and pick a folder, then serves it. Right-click again to stop, reopen it in your browser, change the folder, or quit.
 
-The tray app always binds to `127.0.0.1` (your PC only, no access token needed). For network or phone access, use the environment-variable setup below instead.
+To open it on your phone, right-click the tray icon and choose **Show Phone Address / QR Code...**. The first time, it asks to turn on network access — this switches the server from PC-only to reachable by other devices on your Wi-Fi, protected by an automatically-generated access code. It then shows a QR code: scan it with your phone's camera, or copy the address and access code shown and enter them manually. Your phone must be on the same Wi-Fi network as this PC.
 
 **Everyone else, three commands, forever:**
 

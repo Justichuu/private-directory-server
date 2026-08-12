@@ -3,6 +3,11 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
+using System.Net;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
+using System.Security.Cryptography;
+using System.Text;
 using System.Windows.Forms;
 
 namespace PrivateDirectoryServer
@@ -35,6 +40,7 @@ namespace PrivateDirectoryServer
         private int _port = 8000;
         private string _host = "127.0.0.1";
         private string _accessToken = "";
+        private bool _allowNetworkAccess;
 
         public TrayApplicationContext()
         {
@@ -47,6 +53,7 @@ namespace PrivateDirectoryServer
             _openBrowserItem = new ToolStripMenuItem("Open in Browser", null, (s, e) => OpenBrowser()) { Enabled = false };
             _toggleItem = new ToolStripMenuItem("Start Server", null, (s, e) => ToggleServer());
             _folderItem = new ToolStripMenuItem(FolderLabel(), null, (s, e) => ChooseFolder());
+            var showPhoneItem = new ToolStripMenuItem("Show Phone Address / QR Code...", null, (s, e) => ShowPhoneQr());
             var copyAddressItem = new ToolStripMenuItem("Copy Server Address", null, (s, e) => CopyAddress());
             var viewLogItem = new ToolStripMenuItem("View Log", null, (s, e) => ViewLog());
             var exitItem = new ToolStripMenuItem("Exit", null, (s, e) => ExitApplication());
@@ -56,6 +63,7 @@ namespace PrivateDirectoryServer
             menu.Items.Add(_toggleItem);
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(_folderItem);
+            menu.Items.Add(showPhoneItem);
             menu.Items.Add(copyAddressItem);
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(viewLogItem);
@@ -136,6 +144,7 @@ namespace PrivateDirectoryServer
                     }
                     else if (key == "Host" && value.Length > 0) _host = value;
                     else if (key == "AccessToken") _accessToken = value;
+                    else if (key == "AllowNetworkAccess") _allowNetworkAccess = value == "true";
                 }
             }
         }
@@ -149,6 +158,7 @@ namespace PrivateDirectoryServer
                 "Port=" + _port,
                 "Host=" + _host,
                 "AccessToken=" + _accessToken,
+                "AllowNetworkAccess=" + (_allowNetworkAccess ? "true" : "false"),
             };
             File.WriteAllLines(_settingsPath, lines);
         }
@@ -363,6 +373,101 @@ namespace PrivateDirectoryServer
                 MessageBox.Show("Shared folder updated. It will be used next time you start the server.",
                     "Private Directory Server", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
+        }
+
+        private void ShowPhoneQr()
+        {
+            if (!EnsureNetworkAccessEnabled()) return;
+
+            if (_serverProcess == null || _serverProcess.HasExited)
+            {
+                if (!PromptForSharedFolder()) return;
+                StartServerWithCurrentFolder();
+                if (_serverProcess == null) return;
+            }
+
+            var ip = GetLocalIPAddress();
+            if (ip == null)
+            {
+                MessageBox.Show("Could not find a network address for this PC. Make sure it's connected to Wi-Fi or Ethernet.",
+                    "Private Directory Server", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var phoneUrl = "http://" + ip + ":" + _port;
+            using (var form = new PhoneAccessForm(phoneUrl, _accessToken))
+            {
+                form.ShowDialog();
+            }
+        }
+
+        /// Network binding requires an access token (see src/config.ts), so
+        /// turning this on generates one the first time it's needed. Asks
+        /// first, since this is a real change in what's reachable from the
+        /// network, not something to flip on silently.
+        private bool EnsureNetworkAccessEnabled()
+        {
+            if (_allowNetworkAccess) return true;
+
+            var confirm = MessageBox.Show(
+                "This makes the server reachable from other devices on this Wi-Fi network, not just this PC, "
+                + "protected by a private access code.\n\nTurn this on?",
+                "Private Directory Server", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (confirm != DialogResult.Yes) return false;
+
+            _allowNetworkAccess = true;
+            _host = "0.0.0.0";
+            if (string.IsNullOrEmpty(_accessToken)) _accessToken = GenerateAccessToken();
+            SaveSettings();
+
+            if (_serverProcess != null && !_serverProcess.HasExited)
+            {
+                StopServer();
+                StartServerWithCurrentFolder();
+            }
+            return true;
+        }
+
+        private static string GenerateAccessToken()
+        {
+            var bytes = new byte[16];
+            using (var rng = new RNGCryptoServiceProvider()) rng.GetBytes(bytes);
+            var builder = new StringBuilder(bytes.Length * 2);
+            foreach (var b in bytes) builder.Append(b.ToString("x2"));
+            return builder.ToString();
+        }
+
+        /// Prefers a Wi-Fi or Ethernet adapter's address over VPN/virtual
+        /// adapters, since that's what a phone on the same network needs.
+        private static string GetLocalIPAddress()
+        {
+            var interfaces = NetworkInterface.GetAllNetworkInterfaces();
+            foreach (var preferredType in new[] { NetworkInterfaceType.Wireless80211, NetworkInterfaceType.Ethernet })
+            {
+                foreach (var ni in interfaces)
+                {
+                    if (ni.OperationalStatus != OperationalStatus.Up || ni.NetworkInterfaceType != preferredType) continue;
+                    var address = FirstIPv4Address(ni);
+                    if (address != null) return address;
+                }
+            }
+            foreach (var ni in interfaces)
+            {
+                if (ni.OperationalStatus != OperationalStatus.Up || ni.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
+                var address = FirstIPv4Address(ni);
+                if (address != null) return address;
+            }
+            return null;
+        }
+
+        private static string FirstIPv4Address(NetworkInterface ni)
+        {
+            foreach (var addr in ni.GetIPProperties().UnicastAddresses)
+            {
+                if (addr.Address.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(addr.Address))
+                    return addr.Address.ToString();
+            }
+            return null;
         }
 
         private void ViewLog()

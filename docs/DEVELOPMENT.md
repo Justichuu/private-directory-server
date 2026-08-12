@@ -20,7 +20,11 @@ A separate `npm ci` is no longer required first: `scripts/ensure-deps.js` runs a
 
 ## Desktop launcher (Windows)
 
-`gui/Launcher.cs` is a small, dependency-free system-tray app: right-click for Start/Stop, Open in Browser, choose the shared folder, view the log, or exit. Starting the server always opens a folder-browse dialog first — nothing is served without an explicit choice, and there is no default share folder. It always binds to `127.0.0.1` and never touches `ACCESS_TOKEN` — it's for local single-PC use, not network exposure.
+`gui/Launcher.cs` is a small, dependency-free system-tray app: right-click for Start/Stop, Open in Browser, choose the shared folder, show a phone QR code, view the log, or exit. Starting the server always opens a folder-browse dialog first — nothing is served without an explicit choice, and there is no default share folder.
+
+By default it binds to `127.0.0.1` and never touches `ACCESS_TOKEN`. "Show Phone Address / QR Code..." (`ShowPhoneQr` in `Launcher.cs`) is the one path that changes this: it asks for confirmation, then switches `HOST` to `0.0.0.0` and generates a 32-character hex access token (`GenerateAccessToken`, via `RNGCryptoServiceProvider`) if one isn't already set — `src/config.ts` already requires a token for any non-loopback host, so this mirrors that rule rather than working around it. `GetLocalIPAddress` prefers a Wi-Fi/Ethernet adapter's address over VPN/virtual adapters, since that's what a phone on the same network actually needs; `PhoneAccessForm` renders the QR code plus copyable address/token fields.
+
+The QR code itself is `gui/QrCodeGenerator.cs`, a byte-mode-only port (URLs use lowercase letters, which don't fit QR's alphanumeric mode) of Project Nayuki's public-domain/MIT-licensed QR Code generator library, trimmed down and translated from the TypeScript version. Verified by decoding its output with an independent library (Python's `pyzbar`) across several QR versions rather than just checking that encoding didn't throw.
 
 Windows hides newly-created tray icons in the overflow (`^`) area by default and gives them a generic look, which makes a brand-new tray app easy to miss entirely. The launcher works around this: it draws its own distinct icon at runtime (not the generic system one) and, on first launch, shows a one-time message box pointing at the `^` arrow; later launches show a quieter balloon tip instead.
 

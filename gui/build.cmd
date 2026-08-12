@@ -15,7 +15,7 @@ if not defined CSC (
 )
 
 echo Building the desktop launcher with "!CSC!"...
-"!CSC!" /nologo /target:winexe /out:"Private Directory Server.exe" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll gui\Launcher.cs
+"!CSC!" /nologo /target:winexe /out:"Private Directory Server.exe" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll gui\Launcher.cs gui\QrCodeGenerator.cs gui\PhoneAccessForm.cs
 if errorlevel 1 (
   echo Build failed.
   exit /b 1

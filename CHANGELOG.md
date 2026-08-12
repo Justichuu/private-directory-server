@@ -10,6 +10,7 @@ This project follows semantic versioning. Dates use the ISO `YYYY-MM-DD` format.
 - `npm run menu`, an interactive numbered menu covering start/test/check/build/package.
 - Double-click wrappers (`start`/`test`/`menu` `.cmd` and `.sh`) for anyone who would rather not use a terminal.
 - A Windows system-tray desktop launcher (`gui/Launcher.cs`, built with the C# compiler bundled in .NET Framework — no new npm dependency): Start/Stop, Open in Browser, choose the shared folder, view the log, and exit, with no console window ever shown. Build it locally with `gui\build.cmd`, or download it from a GitHub release.
+- "Show Phone Address / QR Code..." in the tray app: turns on network access (with a confirmation prompt and an auto-generated access token, per the existing non-loopback token requirement) and shows a scannable QR code plus copyable address/token for opening the server on a phone on the same Wi-Fi network.
 
 ## 1.1.0 - 2026-08-02
 
