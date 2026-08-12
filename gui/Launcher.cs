@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.IO;
 using System.Windows.Forms;
 
@@ -40,6 +41,7 @@ namespace PrivateDirectoryServer
             _repoRoot = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
             _settingsPath = Path.Combine(_repoRoot, "gui", "settings.txt");
             _logPath = Path.Combine(_repoRoot, "gui", "server.log");
+            var isFirstRun = !File.Exists(_settingsPath);
             LoadSettings();
 
             _openBrowserItem = new ToolStripMenuItem("Open in Browser", null, (s, e) => OpenBrowser()) { Enabled = false };
@@ -62,7 +64,7 @@ namespace PrivateDirectoryServer
 
             _trayIcon = new NotifyIcon
             {
-                Icon = SystemIcons.Application,
+                Icon = CreateTrayIcon(),
                 Text = "Private Directory Server (stopped)",
                 ContextMenuStrip = menu,
                 Visible = true,
@@ -70,6 +72,44 @@ namespace PrivateDirectoryServer
             _trayIcon.DoubleClick += (s, e) => ToggleServer();
 
             Application.ApplicationExit += (s, e) => StopServer();
+
+            if (isFirstRun)
+            {
+                MessageBox.Show(
+                    "Private Directory Server is now running in your system tray.\n\n"
+                    + "If you don't see its icon near the clock, click the small ^ arrow to show hidden icons.\n\n"
+                    + "Right-click the icon and choose \"Start Server\" to begin.",
+                    "Private Directory Server", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            else
+            {
+                _trayIcon.ShowBalloonTip(6000, "Private Directory Server",
+                    "Running in the tray. If you don't see this icon, click the ^ arrow near the clock, then right-click it to start the server.",
+                    ToolTipIcon.Info);
+            }
+        }
+
+        /// A small, distinctive icon drawn at runtime so the tray entry
+        /// doesn't blend in with the generic system icon.
+        private static Icon CreateTrayIcon()
+        {
+            using (var bitmap = new Bitmap(32, 32))
+            using (var g = Graphics.FromImage(bitmap))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.Clear(Color.Transparent);
+                using (var brush = new SolidBrush(Color.FromArgb(255, 37, 99, 235)))
+                {
+                    g.FillEllipse(brush, 1, 1, 30, 30);
+                }
+                using (var pen = new Pen(Color.White, 3) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+                {
+                    g.DrawLine(pen, 9, 16, 14, 22);
+                    g.DrawLine(pen, 14, 22, 24, 9);
+                }
+                var handle = bitmap.GetHicon();
+                return Icon.FromHandle(handle);
+            }
         }
 
         private string FolderLabel()

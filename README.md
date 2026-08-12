@@ -15,7 +15,7 @@ This is openly a vibe-coded project: it is being shaped through human direction,
 
 1. [Download the latest release](https://github.com/Justichuu/private-directory-server/releases/latest) or `git clone` this repo.
 2. Double-click `gui\build.cmd` once. It compiles a small desktop app using tools already built into Windows — nothing extra to install.
-3. Double-click the new `Private Directory Server.exe`. A tray icon appears — no console window, ever. Right-click it and choose **Start Server**; it asks you to browse to and pick a folder, then serves it. Right-click again to stop, reopen it in your browser, change the folder, or quit.
+3. Double-click the new `Private Directory Server.exe`. The first time, a small window tells you where to find it: **Windows hides new tray icons by default** — click the `^` arrow near the clock to reveal it. Right-click the icon and choose **Start Server**; it asks you to browse to and pick a folder, then serves it. Right-click again to stop, reopen it in your browser, change the folder, or quit.
 
 The tray app always binds to `127.0.0.1` (your PC only, no access token needed). For network or phone access, use the environment-variable setup below instead.
 
