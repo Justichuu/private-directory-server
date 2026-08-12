@@ -20,7 +20,7 @@ A separate `npm ci` is no longer required first: `scripts/ensure-deps.js` runs a
 
 ## Desktop launcher (Windows)
 
-`gui/Launcher.cs` is a small, dependency-free system-tray app: right-click for Start/Stop, Open in Browser, choose the shared folder, view the log, or exit. It always binds to `127.0.0.1` and never touches `ACCESS_TOKEN` — it's for local single-PC use, not network exposure.
+`gui/Launcher.cs` is a small, dependency-free system-tray app: right-click for Start/Stop, Open in Browser, choose the shared folder, view the log, or exit. Starting the server always opens a folder-browse dialog first — nothing is served without an explicit choice, and there is no default share folder. It always binds to `127.0.0.1` and never touches `ACCESS_TOKEN` — it's for local single-PC use, not network exposure.
 
 It's plain C# against `System.Windows.Forms`/`System.Drawing`, compiled with the `csc.exe` that ships with every Windows install (part of .NET Framework), so it adds no npm dependency and no build tooling requirement beyond Windows itself. Build it with:
 

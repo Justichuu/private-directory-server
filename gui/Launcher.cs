@@ -79,7 +79,7 @@ namespace PrivateDirectoryServer
 
         private void LoadSettings()
         {
-            _sharedFolder = Path.Combine(_repoRoot, "Shared");
+            _sharedFolder = _repoRoot;
             if (File.Exists(_settingsPath))
             {
                 foreach (var line in File.ReadAllLines(_settingsPath))
@@ -88,7 +88,7 @@ namespace PrivateDirectoryServer
                     if (separatorIndex <= 0) continue;
                     var key = line.Substring(0, separatorIndex).Trim();
                     var value = line.Substring(separatorIndex + 1).Trim();
-                    if (key == "SharedFolder" && value.Length > 0) _sharedFolder = value;
+                    if (key == "SharedFolder" && value.Length > 0 && Directory.Exists(value)) _sharedFolder = value;
                     else if (key == "Port")
                     {
                         int parsedPort;
@@ -98,7 +98,6 @@ namespace PrivateDirectoryServer
                     else if (key == "AccessToken") _accessToken = value;
                 }
             }
-            Directory.CreateDirectory(_sharedFolder);
         }
 
         private void SaveSettings()
@@ -121,6 +120,30 @@ namespace PrivateDirectoryServer
         }
 
         private void StartServer()
+        {
+            if (!PromptForSharedFolder()) return;
+            StartServerWithCurrentFolder();
+        }
+
+        /// Shows the folder picker and stores the result in _sharedFolder.
+        /// Returns false if the user cancelled, in which case the caller
+        /// should not proceed.
+        private bool PromptForSharedFolder()
+        {
+            using (var dialog = new FolderBrowserDialog())
+            {
+                dialog.SelectedPath = Directory.Exists(_sharedFolder) ? _sharedFolder : _repoRoot;
+                dialog.Description = "Choose the folder to share";
+                if (dialog.ShowDialog() != DialogResult.OK) return false;
+
+                _sharedFolder = dialog.SelectedPath;
+                _folderItem.Text = FolderLabel();
+                SaveSettings();
+                return true;
+            }
+        }
+
+        private void StartServerWithCurrentFolder()
         {
             if (!EnsureBuilt()) return;
 
@@ -287,27 +310,18 @@ namespace PrivateDirectoryServer
 
         private void ChooseFolder()
         {
-            using (var dialog = new FolderBrowserDialog())
+            if (!PromptForSharedFolder()) return;
+
+            var wasRunning = _serverProcess != null && !_serverProcess.HasExited;
+            if (wasRunning)
             {
-                dialog.SelectedPath = _sharedFolder;
-                dialog.Description = "Choose the folder to share";
-                if (dialog.ShowDialog() != DialogResult.OK) return;
-
-                _sharedFolder = dialog.SelectedPath;
-                _folderItem.Text = FolderLabel();
-                SaveSettings();
-
-                var wasRunning = _serverProcess != null && !_serverProcess.HasExited;
-                if (wasRunning)
-                {
-                    StopServer();
-                    StartServer();
-                }
-                else
-                {
-                    MessageBox.Show("Shared folder updated. It will be used next time you start the server.",
-                        "Private Directory Server", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                }
+                StopServer();
+                StartServerWithCurrentFolder();
+            }
+            else
+            {
+                MessageBox.Show("Shared folder updated. It will be used next time you start the server.",
+                    "Private Directory Server", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }
 
