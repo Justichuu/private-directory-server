@@ -7,3 +7,6 @@ release/
 npm-debug.log*
 .DS_Store
 Thumbs.db
+/Private Directory Server.exe
+gui/settings.txt
+/Shared/

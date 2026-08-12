@@ -9,6 +9,28 @@ This is openly a vibe-coded project: it is being shaped through human direction,
 
 ![Private Directory Server browser](docs/screenshot.png)
 
+## The easy way
+
+**Windows, no terminal at all:**
+
+1. [Download the latest release](https://github.com/Justichuu/private-directory-server/releases/latest) or `git clone` this repo.
+2. Double-click `gui\build.cmd` once. It compiles a small desktop app using tools already built into Windows — nothing extra to install.
+3. Double-click the new `Private Directory Server.exe`. A tray icon appears — no console window, ever. Right-click it to start the server, open it in your browser, change the shared folder, or quit.
+
+The tray app always binds to `127.0.0.1` (your PC only, no access token needed). For network or phone access, use the environment-variable setup below instead.
+
+**Everyone else, three commands, forever:**
+
+```powershell
+npm start      # start the server (installs and builds automatically on first run)
+npm test       # run the test suite
+npm run menu   # do anything else: build, package, type-check
+```
+
+Prefer double-clicking to typing? Use `start.cmd` / `test.cmd` / `menu.cmd` (Windows) or `start.sh` / `test.sh` / `menu.sh` (macOS/Linux) — same three things, no terminal required to launch them.
+
+The full command reference below still works exactly as documented; none of this replaces it.
+
 ## Why use it?
 
 - Secure defaults: localhost binding, read-only access, hidden files excluded, and no symlink escape.
@@ -43,6 +65,8 @@ Open `http://127.0.0.1:8000`.
 ## Run a release download
 
 Download and extract the `.zip` or `.tar.gz` from GitHub Releases, then set `DIRECTORY_ROOT` and run `start.cmd` on Windows or `./start.sh` on Linux/macOS. Release bundles contain compiled JavaScript and need no package installation.
+
+Windows users who want the tray app without building anything can instead download `private-directory-server-windows-gui-<version>.zip` — it's the same release bundle with `Private Directory Server.exe` already built in. Extract it and double-click the exe.
 
 ## Private-network access
 
@@ -104,7 +128,9 @@ cmd /c npm test
 cmd /c npm run package
 ```
 
-`npm run package` creates a dependency-free runtime directory under `release/`. Pull requests run strict checks, integration tests, and packaging on Windows and Linux. Tags matching `v*` produce `.zip` and `.tar.gz` GitHub release assets.
+Each of these (and `npm start`) installs dependencies automatically on first run — a fresh `git clone` needs no separate `npm ci` step. `npm run menu` wraps all of them plus the server itself in one interactive, numbered prompt.
+
+`npm run package` creates a dependency-free runtime directory under `release/`. Pull requests run strict checks, integration tests, and packaging on Windows and Linux. Tags matching `v*` produce `.zip` and `.tar.gz` GitHub release assets, plus a Windows build that includes the desktop tray launcher (`gui/Launcher.cs`, compiled with the `csc.exe` that ships with .NET Framework — no npm dependency added). Run `gui\build.cmd` to build that launcher locally instead of waiting for a release.
 
 ## HTTP API
 

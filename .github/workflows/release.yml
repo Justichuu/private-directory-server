@@ -29,3 +29,29 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" release/*.tar.gz release/*.zip --generate-notes --verify-tag
+
+  windows-gui:
+    needs: release
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run package
+      - name: Build desktop launcher
+        run: gui\build.cmd
+        shell: cmd
+      - name: Assemble Windows GUI bundle
+        shell: pwsh
+        run: |
+          Copy-Item "Private Directory Server.exe" "release/private-directory-server/Private Directory Server.exe"
+          Compress-Archive -Path "release/private-directory-server/*" -DestinationPath "release/private-directory-server-windows-gui-$env:GITHUB_REF_NAME.zip"
+      - name: Upload Windows GUI bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$env:GITHUB_REF_NAME" "release/private-directory-server-windows-gui-$env:GITHUB_REF_NAME.zip" --clobber
+        shell: pwsh
