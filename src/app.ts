@@ -1,13 +1,16 @@
 import { createReadStream, promises as fs } from "node:fs";
 import { type IncomingMessage, type ServerResponse } from "node:http";
 import path from "node:path";
+import { pipeline } from "node:stream/promises";
 import { clearSessionCookie, createSessionCookie, isAuthenticated, verifyAccessToken } from "./auth-service";
+import { buildValidators, isNotModified } from "./cache-service";
+import { createCompressionStream, negotiateEncoding } from "./compression";
 import { getContentType } from "./content-types";
 import { listDirectory } from "./directory-service";
-import { securityHeaders, sendError, sendJson } from "./http-utils";
+import { COMPRESSIBLE_THRESHOLD_BYTES, securityHeaders, sendError, sendJson } from "./http-utils";
 import { resolveSafePath } from "./path-service";
 import { parseByteRange } from "./range-service";
-import { BodyLimitError, readBody, readJsonBody } from "./request-body";
+import { BodyLimitError, readJsonBody, streamBodyToFile } from "./request-body";
 import { searchDirectory } from "./search-service";
 import { type ServerConfig, type SessionInfo } from "./types";
 
@@ -35,9 +38,24 @@ async function serveFile(options: {
   readonly response: ServerResponse;
   readonly filePath: string;
   readonly disposition: "attachment" | "inline";
+  readonly cacheControl: string;
 }): Promise<void> {
   const stats = await fs.stat(options.filePath).catch(() => null);
   if (stats === null || !stats.isFile()) return sendError(options.response, 404, "File not found.");
+  const validators = buildValidators(stats);
+  const conditionalHeaders: Record<string, string> = {
+    ...securityHeaders(),
+    "Cache-Control": options.cacheControl,
+    "ETag": validators.etag,
+    "Last-Modified": validators.lastModified,
+  };
+  // A conditional short-circuit must not apply to Range requests: video seeking always needs
+  // the real 206/416 response, not a bodyless 304.
+  if (options.request.headers.range === undefined && isNotModified(options.request.headers, validators, stats.mtimeMs)) {
+    options.response.writeHead(304, conditionalHeaders);
+    options.response.end();
+    return;
+  }
   const range = parseByteRange(options.request.headers.range, stats.size);
   if (range.status === "unsatisfiable") {
     options.response.writeHead(416, { ...securityHeaders(), "Content-Range": `bytes */${stats.size}` });
@@ -48,13 +66,25 @@ async function serveFile(options: {
   const end = range.status === "partial" ? range.end : Math.max(stats.size - 1, 0);
   const contentLength = stats.size === 0 ? 0 : end - start + 1;
   const safeName = path.basename(options.filePath).replace(/["\r\n]/gu, "_");
+  const contentType = getContentType(options.filePath);
+  // Compression only ever applies to a full, uncompressed-format, non-HEAD response: a
+  // Range request needs its exact byte offsets honoured, and images/audio/video/PDFs are
+  // already compressed formats where re-compressing wastes CPU for no size benefit.
+  const isCompressibleType = contentType.startsWith("text/") || contentType.startsWith("application/json");
+  const canCompress = range.status === "full" && isCompressibleType && stats.size >= COMPRESSIBLE_THRESHOLD_BYTES && options.request.method !== "HEAD";
+  const compressionEncoding = canCompress ? negotiateEncoding(options.request.headers["accept-encoding"]) : null;
   const headers: Record<string, string | number> = {
-    ...securityHeaders(),
+    ...conditionalHeaders,
     "Accept-Ranges": "bytes",
     "Content-Disposition": `${options.disposition}; filename="${safeName}"; filename*=UTF-8''${encodeURIComponent(safeName)}`,
-    "Content-Length": contentLength,
-    "Content-Type": getContentType(options.filePath),
+    "Content-Type": contentType,
   };
+  if (compressionEncoding !== null) {
+    headers["Content-Encoding"] = compressionEncoding;
+    headers["Vary"] = "Accept-Encoding";
+  } else {
+    headers["Content-Length"] = contentLength;
+  }
   if (range.status === "partial") headers["Content-Range"] = `bytes ${start}-${end}/${stats.size}`;
   options.response.writeHead(range.status === "partial" ? 206 : 200, headers);
   if (options.request.method === "HEAD" || stats.size === 0) {
@@ -62,36 +92,48 @@ async function serveFile(options: {
     return;
   }
   const stream = createReadStream(options.filePath, { start, end });
-  stream.on("error", () => options.response.destroy());
-  stream.pipe(options.response);
+  try {
+    if (compressionEncoding !== null) {
+      await pipeline(stream, createCompressionStream(compressionEncoding), options.response);
+    } else {
+      await pipeline(stream, options.response);
+    }
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === "AbortError") return;
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "ERR_STREAM_PREMATURE_CLOSE") return;
+    throw error;
+  }
 }
 
 async function resolveDirectory(url: URL, config: ServerConfig): Promise<Awaited<ReturnType<typeof resolveSafePath>>> {
   return resolveSafePath({ rootDirectory: config.rootDirectory, requestedPath: url.searchParams.get("path") ?? "", showHidden: config.showHidden });
 }
 
-async function serveListing(response: ServerResponse, url: URL, config: ServerConfig): Promise<void> {
+async function serveListing(request: IncomingMessage, response: ServerResponse, url: URL, config: ServerConfig): Promise<void> {
+  const acceptEncoding = request.headers["accept-encoding"];
   const resolution = await resolveDirectory(url, config);
-  if (resolution.status !== "resolved") return sendJson(response, resolution.status === "forbidden" ? 403 : 404, { error: resolution.reason });
-  const stats = await fs.stat(resolution.absolutePath);
-  if (!stats.isDirectory()) return sendJson(response, 400, { error: "The requested path is not a directory." });
+  if (resolution.status !== "resolved") return sendJson(response, resolution.status === "forbidden" ? 403 : 404, { error: resolution.reason }, acceptEncoding);
+  const stats = await fs.stat(resolution.absolutePath).catch(() => null);
+  if (stats === null) return sendJson(response, 404, { error: "The requested path does not exist." }, acceptEncoding);
+  if (!stats.isDirectory()) return sendJson(response, 400, { error: "The requested path is not a directory." }, acceptEncoding);
   const items = await listDirectory({ absolutePath: resolution.absolutePath, relativePath: resolution.relativePath, showHidden: config.showHidden });
-  sendJson(response, 200, { path: resolution.relativePath, items });
+  sendJson(response, 200, { path: resolution.relativePath, items }, acceptEncoding);
 }
 
-async function serveSearch(response: ServerResponse, url: URL, config: ServerConfig): Promise<void> {
+async function serveSearch(request: IncomingMessage, response: ServerResponse, url: URL, config: ServerConfig): Promise<void> {
+  const acceptEncoding = request.headers["accept-encoding"];
   const query = (url.searchParams.get("q") ?? "").trim();
-  if (query.length < 2) return sendJson(response, 400, { error: "Search requires at least two characters." });
+  if (query.length < 2) return sendJson(response, 400, { error: "Search requires at least two characters." }, acceptEncoding);
   const resolution = await resolveDirectory(url, config);
-  if (resolution.status !== "resolved") return sendJson(response, resolution.status === "forbidden" ? 403 : 404, { error: resolution.reason });
+  if (resolution.status !== "resolved") return sendJson(response, resolution.status === "forbidden" ? 403 : 404, { error: resolution.reason }, acceptEncoding);
   const items = await searchDirectory({ absolutePath: resolution.absolutePath, relativePath: resolution.relativePath, query, showHidden: config.showHidden });
-  sendJson(response, 200, { path: resolution.relativePath, query, items });
+  sendJson(response, 200, { path: resolution.relativePath, query, items }, acceptEncoding);
 }
 
 async function serveSharedFile(request: IncomingMessage, response: ServerResponse, requestedPath: string, config: ServerConfig, disposition: "attachment" | "inline"): Promise<void> {
   const resolution = await resolveSafePath({ rootDirectory: config.rootDirectory, requestedPath, showHidden: config.showHidden });
   if (resolution.status !== "resolved") return sendError(response, resolution.status === "forbidden" ? 403 : 404, resolution.reason);
-  await serveFile({ request, response, filePath: resolution.absolutePath, disposition });
+  await serveFile({ request, response, filePath: resolution.absolutePath, disposition, cacheControl: "private, must-revalidate" });
 }
 
 async function handleLogin(request: IncomingMessage, response: ServerResponse, config: ServerConfig): Promise<void> {
@@ -117,8 +159,7 @@ async function handleUpload(request: IncomingMessage, response: ServerResponse, 
   if (fileName === "." || fileName === ".." || (!config.showHidden && fileName.startsWith("."))) return sendJson(response, 403, { error: "Upload path is not allowed." });
   const targetPath = path.join(parentResolution.absolutePath, fileName);
   try {
-    const body = await readBody(request, config.maxUploadBytes);
-    await fs.writeFile(targetPath, body, { flag: "wx" });
+    await streamBodyToFile(request, targetPath, config.maxUploadBytes);
     sendJson(response, 201, { ok: true, path: [parentResolution.relativePath, fileName].filter(Boolean).join("/") });
   } catch (error: unknown) {
     if (error instanceof BodyLimitError) return sendJson(response, 413, { error: error.message });
@@ -130,7 +171,10 @@ async function handleUpload(request: IncomingMessage, response: ServerResponse, 
 async function servePublicAsset(request: IncomingMessage, response: ServerResponse, urlPath: string, config: ServerConfig): Promise<void> {
   const assetName = urlPath === "/" ? "index.html" : urlPath.slice("/assets/".length);
   if (assetName.includes("/") || assetName.includes("\\") || assetName.startsWith(".")) return sendError(response, 404, "Asset not found.");
-  await serveFile({ request, response, filePath: path.join(config.publicDirectory, assetName), disposition: "inline" });
+  // Asset filenames are not content-hashed, so a long max-age would keep serving a stale
+  // script after an upgrade; the HTML shell always revalidates so a new build is picked up.
+  const cacheControl = assetName === "index.html" ? "no-cache" : "public, max-age=300, must-revalidate";
+  await serveFile({ request, response, filePath: path.join(config.publicDirectory, assetName), disposition: "inline", cacheControl });
 }
 
 function sessionInfo(request: IncomingMessage, config: ServerConfig): SessionInfo {
@@ -153,8 +197,8 @@ export function createRequestHandler(config: ServerConfig): (request: IncomingMe
       }
       if (url.pathname === "/" || url.pathname.startsWith("/assets/")) return servePublicAsset(request, response, url.pathname, config);
       if (!isAuthenticated(request, config.accessToken)) return sendUnauthorized(response);
-      if (url.pathname === "/api/files" && request.method === "GET") return serveListing(response, url, config);
-      if (url.pathname === "/api/search" && request.method === "GET") return serveSearch(response, url, config);
+      if (url.pathname === "/api/files" && request.method === "GET") return serveListing(request, response, url, config);
+      if (url.pathname === "/api/search" && request.method === "GET") return serveSearch(request, response, url, config);
       if (url.pathname === "/api/files" && request.method === "POST") return handleUpload(request, response, url, config);
       if (url.pathname.startsWith("/files/") && (request.method === "GET" || request.method === "HEAD")) return serveSharedFile(request, response, url.pathname.slice(7), config, "attachment");
       if (url.pathname.startsWith("/view/") && (request.method === "GET" || request.method === "HEAD")) return serveSharedFile(request, response, url.pathname.slice(6), config, "inline");

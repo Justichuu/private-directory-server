@@ -97,28 +97,80 @@ async function showPreview(item: ApiItem): Promise<void> {
   previewContent.replaceChildren(element);
 }
 
-function createItem(item: ApiItem): HTMLElement {
+function createItem(item: ApiItem, index: number): HTMLElement {
   const row = document.createElement("div");
   row.className = "item";
+  row.dataset.index = String(index);
   const icon = document.createElement("span"); icon.className = "icon"; icon.textContent = item.type === "directory" ? "DIR" : "FILE";
-  const name = document.createElement("button"); name.className = "name"; name.textContent = item.name;
-  name.addEventListener("click", () => {
-    if (item.type === "directory") navigateTo(item.path);
-    else if (previewKind(item.name) !== "none") void showPreview(item);
-    else window.location.assign(`/files/${encodePath(item.path)}`);
-  });
+  const name = document.createElement("button"); name.className = "name"; name.textContent = item.name; name.dataset.action = "open";
   const meta = document.createElement("span"); meta.className = "meta"; meta.textContent = item.type === "directory" ? "Folder" : formatBytes(item.size);
   row.append(icon, name, meta);
   if (item.type === "file") {
     if (previewKind(item.name) !== "none") {
-      const preview = document.createElement("button"); preview.className = "item-action quiet preview"; preview.textContent = "Preview"; preview.addEventListener("click", () => void showPreview(item)); row.append(preview);
+      const preview = document.createElement("button"); preview.className = "item-action quiet preview"; preview.textContent = "Preview"; preview.dataset.action = "preview"; row.append(preview);
     }
     const download = document.createElement("a"); download.className = "item-action quiet"; download.textContent = "Download"; download.href = `/files/${encodePath(item.path)}`; download.download = item.name; row.append(download);
   }
   return row;
 }
 
+function handleItemAction(item: ApiItem, action: string): void {
+  if (action === "open") {
+    if (item.type === "directory") navigateTo(item.path);
+    else if (previewKind(item.name) !== "none") void showPreview(item);
+    else window.location.assign(`/files/${encodePath(item.path)}`);
+  } else if (action === "preview") {
+    void showPreview(item);
+  }
+}
+
+itemsElement.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  const actionElement = target.closest<HTMLElement>("[data-action]");
+  const action = actionElement?.dataset.action;
+  const row = actionElement?.closest<HTMLElement>(".item");
+  const index = row?.dataset.index === undefined ? Number.NaN : Number(row.dataset.index);
+  const item = state.items[index];
+  if (action === undefined || item === undefined) return;
+  handleItemAction(item, action);
+});
+
+const INITIAL_RENDER_COUNT = 60;
+const CHUNK_RENDER_COUNT = 200;
+
+let renderGeneration = 0;
+let pendingChunkFrame: number | null = null;
+
+function cancelPendingChunks(): void {
+  if (pendingChunkFrame !== null) {
+    cancelAnimationFrame(pendingChunkFrame);
+    pendingChunkFrame = null;
+  }
+}
+
+function fragmentFor(items: readonly ApiItem[], startIndex: number, endIndex: number): DocumentFragment {
+  const fragment = document.createDocumentFragment();
+  for (let index = startIndex; index < endIndex; index += 1) {
+    const item = items[index];
+    if (item !== undefined) fragment.append(createItem(item, index));
+  }
+  return fragment;
+}
+
+function appendRemainingInChunks(items: readonly ApiItem[], nextIndex: number, generation: number): void {
+  if (generation !== renderGeneration) return;
+  const endIndex = Math.min(nextIndex + CHUNK_RENDER_COUNT, items.length);
+  itemsElement.append(fragmentFor(items, nextIndex, endIndex));
+  pendingChunkFrame = endIndex < items.length
+    ? requestAnimationFrame(() => appendRemainingInChunks(items, endIndex, generation))
+    : null;
+}
+
 function render(): void {
+  cancelPendingChunks();
+  renderGeneration += 1;
+  const generation = renderGeneration;
   const locked = state.status === "locked";
   loginPanel.hidden = !locked;
   browser.hidden = locked || state.status === "booting";
@@ -126,13 +178,17 @@ function render(): void {
   uploadButton.hidden = state.session?.accessMode !== "upload";
   if (locked || state.status === "booting") return;
   renderBreadcrumbs(state.path);
-  itemsElement.replaceChildren();
   itemsElement.hidden = state.status !== "ready";
   statusElement.hidden = state.status === "ready";
   statusElement.classList.toggle("error", state.status === "error");
   const messages: Partial<Record<ViewStatus, string>> = { loading: "Loading directory…", uploading: "Uploading file…", empty: state.searchQuery ? "No matching files found." : "This directory is empty.", error: state.error };
   statusElement.textContent = messages[state.status] ?? "";
-  if (state.status === "ready") state.items.forEach((item) => itemsElement.append(createItem(item)));
+  if (state.status !== "ready") { itemsElement.replaceChildren(); return; }
+  const initialCount = Math.min(INITIAL_RENDER_COUNT, state.items.length);
+  itemsElement.replaceChildren(fragmentFor(state.items, 0, initialCount));
+  if (initialCount < state.items.length) {
+    pendingChunkFrame = requestAnimationFrame(() => appendRemainingInChunks(state.items, initialCount, generation));
+  }
 }
 
 function isListing(value: unknown): value is ApiListing {
@@ -141,15 +197,28 @@ function isListing(value: unknown): value is ApiListing {
   return typeof candidate.path === "string" && Array.isArray(candidate.items);
 }
 
+let activeRequestToken = 0;
+let activeAbortController: AbortController | null = null;
+
 async function loadItems(endpoint: string): Promise<void> {
+  activeAbortController?.abort();
+  const abortController = new AbortController();
+  activeAbortController = abortController;
+  const requestToken = (activeRequestToken += 1);
   state.status = "loading"; state.error = ""; render();
   try {
-    const response = await fetch(endpoint, { headers: { Accept: "application/json" } });
+    const response = await fetch(endpoint, { headers: { Accept: "application/json" }, signal: abortController.signal });
+    if (requestToken !== activeRequestToken) return;
     if (response.status === 401) { state.status = "locked"; render(); return; }
     const payload: unknown = await response.json();
+    if (requestToken !== activeRequestToken) return;
     if (!response.ok || !isListing(payload)) throw new Error(typeof payload === "object" && payload !== null && "error" in payload && typeof payload.error === "string" ? payload.error : "The directory could not be loaded.");
     state.path = payload.path; state.items = payload.items; state.status = payload.items.length === 0 ? "empty" : "ready";
-  } catch (error: unknown) { state.status = "error"; state.error = error instanceof Error ? error.message : "The directory could not be loaded."; }
+  } catch (error: unknown) {
+    if (error instanceof DOMException && error.name === "AbortError") return;
+    if (requestToken !== activeRequestToken) return;
+    state.status = "error"; state.error = error instanceof Error ? error.message : "The directory could not be loaded.";
+  }
   render();
 }
 
@@ -168,11 +237,13 @@ logoutButton.addEventListener("click", () => void fetch("/api/session", { method
 searchForm.addEventListener("submit", (event) => { event.preventDefault(); const query = searchInput.value.trim(); if (query.length >= 2) { state.searchQuery = query; void loadItems(`/api/search?path=${encodeURIComponent(state.path)}&q=${encodeURIComponent(query)}`); } });
 uploadInput.addEventListener("change", () => {
   const file = uploadInput.files?.[0];
+  uploadInput.value = "";
   if (file === undefined || state.session === null) return;
+  state.error = "";
   if (file.size > state.session.maxUploadBytes) { state.status = "error"; state.error = `File exceeds the ${formatBytes(state.session.maxUploadBytes)} upload limit.`; render(); return; }
   const targetPath = [state.path, file.name].filter(Boolean).join("/");
   state.status = "uploading"; render();
-  void fetch(`/api/files?path=${encodeURIComponent(targetPath)}`, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: file }).then(async (response) => { if (!response.ok) { const payload = await response.json() as { error?: string }; throw new Error(payload.error ?? "Upload failed."); } uploadInput.value = ""; await loadDirectory(state.path); }).catch((error: unknown) => { state.status = "error"; state.error = error instanceof Error ? error.message : "Upload failed."; render(); });
+  void fetch(`/api/files?path=${encodeURIComponent(targetPath)}`, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: file }).then(async (response) => { if (!response.ok) { const payload = await response.json() as { error?: string }; throw new Error(payload.error ?? "Upload failed."); } await loadDirectory(state.path); }).catch((error: unknown) => { state.status = "error"; state.error = error instanceof Error ? error.message : "Upload failed."; render(); });
 });
 requireElement<HTMLButtonElement>("#closePreview").addEventListener("click", () => previewDialog.close());
 previewDialog.addEventListener("close", () => previewContent.replaceChildren());

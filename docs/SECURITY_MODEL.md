@@ -27,7 +27,7 @@ Tokens are compared through fixed-size SHA-256 digests using constant-time compa
 
 ### Write control
 
-Uploads are absent in `read-only` mode. Upload mode requires a complete body below the configured limit. Files are created with exclusive-create semantics; an existing path returns conflict and is never replaced. There is no delete or rename endpoint.
+Uploads are absent in `read-only` mode. Upload mode streams the request body directly to disk and enforces the configured limit as bytes arrive, not just against the declared length; an upload that exceeds it is aborted and its partial file removed. Files are created with exclusive-create semantics; an existing path returns conflict and is never replaced, and a conflict never deletes the file that was already there. There is no delete or rename endpoint.
 
 ### Resource bounds
 

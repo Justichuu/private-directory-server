@@ -100,23 +100,17 @@ async function showPreview(item) {
     element.setAttribute("src", source);
     previewContent.replaceChildren(element);
 }
-function createItem(item) {
+function createItem(item, index) {
     const row = document.createElement("div");
     row.className = "item";
+    row.dataset.index = String(index);
     const icon = document.createElement("span");
     icon.className = "icon";
     icon.textContent = item.type === "directory" ? "DIR" : "FILE";
     const name = document.createElement("button");
     name.className = "name";
     name.textContent = item.name;
-    name.addEventListener("click", () => {
-        if (item.type === "directory")
-            navigateTo(item.path);
-        else if (previewKind(item.name) !== "none")
-            void showPreview(item);
-        else
-            window.location.assign(`/files/${encodePath(item.path)}`);
-    });
+    name.dataset.action = "open";
     const meta = document.createElement("span");
     meta.className = "meta";
     meta.textContent = item.type === "directory" ? "Folder" : formatBytes(item.size);
@@ -126,7 +120,7 @@ function createItem(item) {
             const preview = document.createElement("button");
             preview.className = "item-action quiet preview";
             preview.textContent = "Preview";
-            preview.addEventListener("click", () => void showPreview(item));
+            preview.dataset.action = "preview";
             row.append(preview);
         }
         const download = document.createElement("a");
@@ -138,7 +132,64 @@ function createItem(item) {
     }
     return row;
 }
+function handleItemAction(item, action) {
+    if (action === "open") {
+        if (item.type === "directory")
+            navigateTo(item.path);
+        else if (previewKind(item.name) !== "none")
+            void showPreview(item);
+        else
+            window.location.assign(`/files/${encodePath(item.path)}`);
+    }
+    else if (action === "preview") {
+        void showPreview(item);
+    }
+}
+itemsElement.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element))
+        return;
+    const actionElement = target.closest("[data-action]");
+    const action = actionElement?.dataset.action;
+    const row = actionElement?.closest(".item");
+    const index = row?.dataset.index === undefined ? Number.NaN : Number(row.dataset.index);
+    const item = state.items[index];
+    if (action === undefined || item === undefined)
+        return;
+    handleItemAction(item, action);
+});
+const INITIAL_RENDER_COUNT = 60;
+const CHUNK_RENDER_COUNT = 200;
+let renderGeneration = 0;
+let pendingChunkFrame = null;
+function cancelPendingChunks() {
+    if (pendingChunkFrame !== null) {
+        cancelAnimationFrame(pendingChunkFrame);
+        pendingChunkFrame = null;
+    }
+}
+function fragmentFor(items, startIndex, endIndex) {
+    const fragment = document.createDocumentFragment();
+    for (let index = startIndex; index < endIndex; index += 1) {
+        const item = items[index];
+        if (item !== undefined)
+            fragment.append(createItem(item, index));
+    }
+    return fragment;
+}
+function appendRemainingInChunks(items, nextIndex, generation) {
+    if (generation !== renderGeneration)
+        return;
+    const endIndex = Math.min(nextIndex + CHUNK_RENDER_COUNT, items.length);
+    itemsElement.append(fragmentFor(items, nextIndex, endIndex));
+    pendingChunkFrame = endIndex < items.length
+        ? requestAnimationFrame(() => appendRemainingInChunks(items, endIndex, generation))
+        : null;
+}
 function render() {
+    cancelPendingChunks();
+    renderGeneration += 1;
+    const generation = renderGeneration;
     const locked = state.status === "locked";
     loginPanel.hidden = !locked;
     browser.hidden = locked || state.status === "booting";
@@ -147,14 +198,20 @@ function render() {
     if (locked || state.status === "booting")
         return;
     renderBreadcrumbs(state.path);
-    itemsElement.replaceChildren();
     itemsElement.hidden = state.status !== "ready";
     statusElement.hidden = state.status === "ready";
     statusElement.classList.toggle("error", state.status === "error");
     const messages = { loading: "Loading directory…", uploading: "Uploading file…", empty: state.searchQuery ? "No matching files found." : "This directory is empty.", error: state.error };
     statusElement.textContent = messages[state.status] ?? "";
-    if (state.status === "ready")
-        state.items.forEach((item) => itemsElement.append(createItem(item)));
+    if (state.status !== "ready") {
+        itemsElement.replaceChildren();
+        return;
+    }
+    const initialCount = Math.min(INITIAL_RENDER_COUNT, state.items.length);
+    itemsElement.replaceChildren(fragmentFor(state.items, 0, initialCount));
+    if (initialCount < state.items.length) {
+        pendingChunkFrame = requestAnimationFrame(() => appendRemainingInChunks(state.items, initialCount, generation));
+    }
 }
 function isListing(value) {
     if (typeof value !== "object" || value === null)
@@ -162,18 +219,28 @@ function isListing(value) {
     const candidate = value;
     return typeof candidate.path === "string" && Array.isArray(candidate.items);
 }
+let activeRequestToken = 0;
+let activeAbortController = null;
 async function loadItems(endpoint) {
+    activeAbortController?.abort();
+    const abortController = new AbortController();
+    activeAbortController = abortController;
+    const requestToken = (activeRequestToken += 1);
     state.status = "loading";
     state.error = "";
     render();
     try {
-        const response = await fetch(endpoint, { headers: { Accept: "application/json" } });
+        const response = await fetch(endpoint, { headers: { Accept: "application/json" }, signal: abortController.signal });
+        if (requestToken !== activeRequestToken)
+            return;
         if (response.status === 401) {
             state.status = "locked";
             render();
             return;
         }
         const payload = await response.json();
+        if (requestToken !== activeRequestToken)
+            return;
         if (!response.ok || !isListing(payload))
             throw new Error(typeof payload === "object" && payload !== null && "error" in payload && typeof payload.error === "string" ? payload.error : "The directory could not be loaded.");
         state.path = payload.path;
@@ -181,6 +248,10 @@ async function loadItems(endpoint) {
         state.status = payload.items.length === 0 ? "empty" : "ready";
     }
     catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError")
+            return;
+        if (requestToken !== activeRequestToken)
+            return;
         state.status = "error";
         state.error = error instanceof Error ? error.message : "The directory could not be loaded.";
     }
@@ -207,8 +278,10 @@ searchForm.addEventListener("submit", (event) => { event.preventDefault(); const
 } });
 uploadInput.addEventListener("change", () => {
     const file = uploadInput.files?.[0];
+    uploadInput.value = "";
     if (file === undefined || state.session === null)
         return;
+    state.error = "";
     if (file.size > state.session.maxUploadBytes) {
         state.status = "error";
         state.error = `File exceeds the ${formatBytes(state.session.maxUploadBytes)} upload limit.`;
@@ -221,7 +294,7 @@ uploadInput.addEventListener("change", () => {
     void fetch(`/api/files?path=${encodeURIComponent(targetPath)}`, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: file }).then(async (response) => { if (!response.ok) {
         const payload = await response.json();
         throw new Error(payload.error ?? "Upload failed.");
-    } uploadInput.value = ""; await loadDirectory(state.path); }).catch((error) => { state.status = "error"; state.error = error instanceof Error ? error.message : "Upload failed."; render(); });
+    } await loadDirectory(state.path); }).catch((error) => { state.status = "error"; state.error = error instanceof Error ? error.message : "Upload failed."; render(); });
 });
 requireElement("#closePreview").addEventListener("click", () => previewDialog.close());
 previewDialog.addEventListener("close", () => previewContent.replaceChildren());

@@ -154,3 +154,78 @@ test("blocks traversal, hidden files, and unsupported methods", async () => {
   assert.equal(hidden.status, 403);
   assert.equal(post.status, 403);
 });
+
+test("returns 304 with matching validators for a conditional GET", async () => {
+  const first = await fetch(`${baseUrl}/files/hello.txt`);
+  const etag = first.headers.get("etag");
+  assert.notEqual(etag, null);
+  const conditional = await fetch(`${baseUrl}/files/hello.txt`, { headers: { "If-None-Match": etag ?? "" } });
+  assert.equal(conditional.status, 304);
+  assert.equal(await conditional.text(), "");
+  assert.equal(conditional.headers.get("etag"), etag);
+});
+
+test("compresses a large JSON listing and advertises Vary: Accept-Encoding", async () => {
+  const bigDirectory = await fs.mkdtemp(path.join(tmpdir(), "private-directory-server-big-"));
+  try {
+    await Promise.all(Array.from({ length: 100 }, (_, index) =>
+      fs.writeFile(path.join(bigDirectory, `file-${index}-with-a-reasonably-long-descriptive-name.txt`), "x")));
+    const started = await startServer(createConfig({ rootDirectory: bigDirectory }));
+    try {
+      const response = await fetch(`${started.baseUrl}/api/files`, { headers: { "Accept-Encoding": "gzip, br" } });
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("content-encoding"), "br");
+      assert.equal(response.headers.get("vary"), "Accept-Encoding");
+      const payload = await response.json() as { items: readonly unknown[] };
+      assert.equal(payload.items.length, 100);
+    } finally {
+      await stopServer(started.server);
+    }
+  } finally {
+    await fs.rm(bigDirectory, { recursive: true, force: true });
+  }
+});
+
+test("never compresses a Range response even when the client accepts compression", async () => {
+  const bigDirectory = await fs.mkdtemp(path.join(tmpdir(), "private-directory-server-range-"));
+  try {
+    await fs.writeFile(path.join(bigDirectory, "large.txt"), "abcdefghij".repeat(200));
+    const started = await startServer(createConfig({ rootDirectory: bigDirectory }));
+    try {
+      const full = await fetch(`${started.baseUrl}/view/large.txt`, { headers: { "Accept-Encoding": "br, gzip" } });
+      assert.equal(full.headers.get("content-encoding"), "br");
+      const ranged = await fetch(`${started.baseUrl}/view/large.txt`, { headers: { "Accept-Encoding": "br, gzip", Range: "bytes=0-4" } });
+      assert.equal(ranged.status, 206);
+      assert.equal(ranged.headers.get("content-encoding"), null);
+      assert.equal(await ranged.text(), "abcde");
+    } finally {
+      await stopServer(started.server);
+    }
+  } finally {
+    await fs.rm(bigDirectory, { recursive: true, force: true });
+  }
+});
+
+test("leaves no partial file when a streamed upload exceeds the byte limit mid-stream", async () => {
+  const started = await startServer(createConfig({ accessMode: "upload", maxUploadBytes: 8 }));
+  try {
+    let sentBytes = 0;
+    const overflowingBody = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (sentBytes >= 40) { controller.close(); return; }
+        controller.enqueue(new TextEncoder().encode("aaaa"));
+        sentBytes += 4;
+      },
+    });
+    const response = await fetch(`${started.baseUrl}/api/files?path=streamed-oversized.bin`, {
+      method: "POST",
+      body: overflowingBody,
+      duplex: "half",
+    } as RequestInit);
+    assert.equal(response.status, 413);
+    const exists = await fs.stat(path.join(rootDirectory, "streamed-oversized.bin")).then(() => true).catch(() => false);
+    assert.equal(exists, false);
+  } finally {
+    await stopServer(started.server);
+  }
+});
