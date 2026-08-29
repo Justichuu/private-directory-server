@@ -48,7 +48,7 @@ This produces `Private Directory Server.exe` at the repo root (gitignored — bu
 - Failed-login rate limiting per client address
 - Bounded, non-overwriting upload permissions
 - Slash-style traversal and hidden-path rejection
-- Symbolic-link escape rejection, skipped when the platform cannot create links
+- Symbolic-link escape rejection and in-root alias listing, skipped when the platform cannot create links
 - Unsupported request methods
 
 ## Browser build
@@ -71,10 +71,12 @@ The command builds the application and creates `release/private-directory-server
 
 ## Releases
 
+No GitHub Release archive has been published yet. After `1.2.0` is on `main`, the publisher creates and pushes `v1.2.0`. That tag is what produces the zip/tarball and the Windows tray bundle. Until then, clone the repository and run `gui\build.cmd` or `npm start`.
+
 1. Ensure the version in `package.json`, `package-lock.json`, and `CHANGELOG.md` agrees.
 2. Run the complete local verification gate.
 3. Merge the release commit into `main` and verify CI.
-4. Create and push a matching tag such as `v1.1.0`.
+4. Create and push a matching tag such as `v1.2.0`.
 5. `.github/workflows/release.yml` reruns checks, creates `.zip` and `.tar.gz` archives, and publishes a GitHub release with generated notes.
 6. Download an archive and verify startup on a clean machine when possible.
 
