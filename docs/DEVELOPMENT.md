@@ -48,7 +48,8 @@ This produces `Private Directory Server.exe` at the repo root (gitignored — bu
 - Failed-login rate limiting per client address
 - Bounded, non-overwriting upload permissions
 - Slash-style traversal and hidden-path rejection
-- Symbolic-link escape rejection and in-root alias listing, skipped when the platform cannot create links
+- Symbolic-link escape rejection, hidden-target aliases, and in-root alias listing, skipped when the platform cannot create links
+- Malformed session cookies and search against a file path
 - Unsupported request methods
 
 ## Browser build

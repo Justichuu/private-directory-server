@@ -85,6 +85,8 @@ async function serveSearch(response: ServerResponse, url: URL, config: ServerCon
   if (query.length < 2) return sendJson(response, 400, { error: "Search requires at least two characters." });
   const resolution = await resolveDirectory(url, config);
   if (resolution.status !== "resolved") return sendJson(response, resolution.status === "forbidden" ? 403 : 404, { error: resolution.reason });
+  const stats = await fs.stat(resolution.absolutePath);
+  if (!stats.isDirectory()) return sendJson(response, 400, { error: "The requested path is not a directory." });
   const items = await searchDirectory({ rootDirectory: config.rootDirectory, absolutePath: resolution.absolutePath, relativePath: resolution.relativePath, query, showHidden: config.showHidden });
   sendJson(response, 200, { path: resolution.relativePath, query, items });
 }
@@ -163,7 +165,7 @@ export function createRequestHandler(config: ServerConfig): (request: IncomingMe
       if (url.pathname === "/api/session" && request.method === "GET") return sendJson(response, 200, sessionInfo(request, config));
       if (url.pathname === "/api/session" && request.method === "POST") return handleLogin(request, response, config, loginLimiter);
       if (url.pathname === "/api/session" && request.method === "DELETE") {
-        response.setHeader("Set-Cookie", clearSessionCookie(shouldUseSecureCookie(request, config.cookieSecure)));
+        response.setHeader("Set-Cookie", [clearSessionCookie(false), clearSessionCookie(true)]);
         return sendJson(response, 200, { ok: true });
       }
       if (url.pathname === "/" || url.pathname.startsWith("/assets/")) return servePublicAsset(request, response, url.pathname, config);

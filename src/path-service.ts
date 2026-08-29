@@ -2,7 +2,7 @@ import { promises as fs, type Dirent } from "node:fs";
 import path from "node:path";
 import { type PathResolution } from "./types";
 
-function containsHiddenSegment(relativePath: string): boolean {
+export function containsHiddenSegment(relativePath: string): boolean {
   return relativePath
     .split(/[\\/]/u)
     .filter(Boolean)
@@ -29,28 +29,20 @@ export async function resolveVisibleEntry(options: {
 } | null> {
   if (!options.showHidden && options.entry.name.startsWith(".")) return null;
   const absoluteEntryPath = path.join(options.directoryPath, options.entry.name);
-  if (options.entry.isSymbolicLink()) {
-    const realPath = await fs.realpath(absoluteEntryPath).catch(() => null);
-    if (realPath === null || !isWithinRoot(options.rootDirectory, realPath)) return null;
-    const stats = await fs.stat(realPath).catch(() => null);
-    if (stats === null || (!stats.isFile() && !stats.isDirectory())) return null;
-    return {
-      name: options.entry.name,
-      type: stats.isDirectory() ? "directory" : "file",
-      size: stats.size,
-      modifiedAt: stats.mtime,
-      descend: false,
-    };
-  }
-  if (!options.entry.isFile() && !options.entry.isDirectory()) return null;
-  const stats = await fs.stat(absoluteEntryPath).catch(() => null);
-  if (stats === null) return null;
+  const linkStats = await fs.lstat(absoluteEntryPath).catch(() => null);
+  if (linkStats === null) return null;
+  const realPath = await fs.realpath(absoluteEntryPath).catch(() => null);
+  if (realPath === null || !isWithinRoot(options.rootDirectory, realPath)) return null;
+  const publishedRelative = path.relative(options.rootDirectory, realPath).split(path.sep).join("/");
+  if (!options.showHidden && containsHiddenSegment(publishedRelative)) return null;
+  const stats = await fs.stat(realPath).catch(() => null);
+  if (stats === null || (!stats.isFile() && !stats.isDirectory())) return null;
   return {
     name: options.entry.name,
-    type: options.entry.isDirectory() ? "directory" : "file",
+    type: stats.isDirectory() ? "directory" : "file",
     size: stats.size,
     modifiedAt: stats.mtime,
-    descend: options.entry.isDirectory(),
+    descend: stats.isDirectory() && !linkStats.isSymbolicLink(),
   };
 }
 
@@ -92,9 +84,14 @@ export async function resolveSafePath(options: {
     return { status: "forbidden", reason: "Symbolic links outside the shared directory are blocked." };
   }
 
+  const publishedRelative = path.relative(rootPath, realCandidate).split(path.sep).join("/");
+  if (!options.showHidden && containsHiddenSegment(publishedRelative)) {
+    return { status: "forbidden", reason: "Hidden paths are not available." };
+  }
+
   return {
     status: "resolved",
     absolutePath: realCandidate,
-    relativePath: path.relative(rootPath, realCandidate).split(path.sep).join("/"),
+    relativePath: publishedRelative,
   };
 }

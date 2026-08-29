@@ -20,5 +20,8 @@ test("blocks a client after the failed-login limit and resets after success or e
   limiter.recordSuccess("10.0.0.2");
   assert.equal(limiter.retryAfterSeconds("10.0.0.2", start + LOGIN_ATTEMPT_LIMIT + 1), null);
   limiter.recordFailure("10.0.0.4", start);
+  limiter.recordFailure("10.0.0.5", start);
+  assert.ok(limiter.trackedClients >= 2);
   assert.equal(limiter.retryAfterSeconds("10.0.0.4", start + LOGIN_ATTEMPT_WINDOW_MS), null);
+  assert.equal(limiter.trackedClients, 0);
 });

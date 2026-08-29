@@ -163,7 +163,14 @@ namespace PrivateDirectoryServer
             else if (plaintextToken.Length > 0)
             {
                 _accessToken = plaintextToken;
-                SaveSettings();
+            }
+
+            if (plaintextToken.Length > 0)
+            {
+                try { SaveSettings(); }
+                catch (CryptographicException) { }
+                catch (UnauthorizedAccessException) { }
+                catch (IOException) { }
             }
         }
 

@@ -187,6 +187,21 @@ test("supports bounded, non-overwriting uploads only when enabled", async () => 
   }
 });
 
+test("does not treat a malformed session cookie as a server error", async () => {
+  const started = await startServer(createConfig({ accessToken: "this-is-a-strong-test-token" }));
+  try {
+    const response = await fetch(`${started.baseUrl}/api/files`, { headers: { Cookie: "pds_session=%E0%A4%A" } });
+    assert.equal(response.status, 401);
+  } finally {
+    await stopServer(started.server);
+  }
+});
+
+test("rejects search when the path is a file", async () => {
+  const response = await fetch(`${baseUrl}/api/search?path=${encodeURIComponent("hello.txt")}&q=he`);
+  assert.equal(response.status, 400);
+});
+
 test("blocks symbolic links whose real target is outside the shared root", async (t) => {
   const isolatedRoot = await fs.mkdtemp(path.join(tmpdir(), "private-directory-server-links-"));
   const outsideDirectory = await fs.mkdtemp(path.join(tmpdir(), "private-directory-server-outside-"));
@@ -220,6 +235,19 @@ test("blocks symbolic links whose real target is outside the shared root", async
     const aliased = await fetch(`${started.baseUrl}/files/hello-alias`);
     assert.equal(aliased.status, 200);
     assert.equal(await aliased.text(), "hello world");
+    await fs.writeFile(path.join(isolatedRoot, ".secret"), "hidden");
+    await fs.writeFile(path.join(outsideDirectory, "unique-outside-needle.txt"), "outside");
+    await fs.symlink(path.join(isolatedRoot, ".secret"), path.join(isolatedRoot, "visible-secret"));
+    await fs.symlink(outsideDirectory, path.join(isolatedRoot, "outside-dir"));
+    const hiddenAlias = await fetch(`${started.baseUrl}/files/visible-secret`);
+    assert.equal(hiddenAlias.status, 403);
+    const listingAfter = await fetch(`${started.baseUrl}/api/files`);
+    const names = ((await listingAfter.json()) as { items: ReadonlyArray<{ name: string }> }).items.map((item) => item.name);
+    assert.equal(names.includes("visible-secret"), false);
+    assert.equal(names.includes("outside-dir"), false);
+    const leaked = await fetch(`${started.baseUrl}/api/search?q=unique-outside-needle`);
+    const leakedPayload = await leaked.json() as { items: ReadonlyArray<{ name: string }> };
+    assert.deepEqual(leakedPayload.items, []);
   } finally {
     await stopServer(started.server);
     await fs.rm(isolatedRoot, { recursive: true, force: true });

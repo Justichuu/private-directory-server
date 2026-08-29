@@ -22,6 +22,8 @@ This project follows semantic versioning. Dates use the ISO `YYYY-MM-DD` format.
 - Failed browser logins are limited to five attempts per client address in a 15-minute window.
 - Session cookies stay sendable on direct HTTP and gain `Secure` behind a TLS proxy or `COOKIE_SECURE=true`.
 - HTTP tests cover symlink escape and in-root alias visibility.
+- Hidden-file policy now applies to the real path, so an alias cannot expose a dotfile. Listings and search `lstat` every entry before following it.
+- Malformed session cookies return 401 instead of 500. Logout clears both Secure and non-Secure cookies. Failed-login records expire out of memory with the window.
 
 ### Changed
 
