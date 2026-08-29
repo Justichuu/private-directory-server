@@ -13,7 +13,7 @@ interface SearchDirectory {
   readonly depth: number;
 }
 
-/** Recursively searches accessible names without following symbolic links. */
+/** Recursively searches accessible names. In-root symlink aliases match; their targets are not descended. */
 export async function searchDirectory(options: {
   readonly rootDirectory: string;
   readonly absolutePath: string;
