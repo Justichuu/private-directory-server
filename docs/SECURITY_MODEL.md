@@ -25,6 +25,8 @@ Requested paths are URL-decoded, normalized, resolved against the real root, and
 
 Tokens are compared through fixed-size SHA-256 digests using constant-time comparison. Browser login creates an opaque digest cookie with `HttpOnly`, `SameSite=Strict`, a root path, and a 24-hour lifetime. Bearer tokens are supported for API clients. Tokens are never accepted in query strings.
 
+The Windows tray launcher keeps the generated LAN token in `gui/settings.txt` as DPAPI ciphertext for the current account (`AccessTokenProtected=`). The file ACL allows only that account. Other local accounts, and a copied settings file on another machine, cannot recover the token.
+
 ### Write control
 
 Uploads are absent in `read-only` mode. Upload mode requires a complete body below the configured limit. Files are created with exclusive-create semantics; an existing path returns conflict and is never replaced. There is no delete or rename endpoint.

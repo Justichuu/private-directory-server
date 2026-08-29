@@ -6,7 +6,9 @@ using System.IO;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using System.Security.AccessControl;
 using System.Security.Cryptography;
+using System.Security.Principal;
 using System.Text;
 using System.Windows.Forms;
 
@@ -41,6 +43,7 @@ namespace PrivateDirectoryServer
         private string _host = "127.0.0.1";
         private string _accessToken = "";
         private bool _allowNetworkAccess;
+        private static readonly byte[] TokenEntropy = Encoding.UTF8.GetBytes("PrivateDirectoryServer.AccessToken.v1");
 
         public TrayApplicationContext()
         {
@@ -128,6 +131,8 @@ namespace PrivateDirectoryServer
         private void LoadSettings()
         {
             _sharedFolder = _repoRoot;
+            var plaintextToken = "";
+            var protectedToken = "";
             if (File.Exists(_settingsPath))
             {
                 foreach (var line in File.ReadAllLines(_settingsPath))
@@ -143,9 +148,22 @@ namespace PrivateDirectoryServer
                         if (int.TryParse(value, out parsedPort)) _port = parsedPort;
                     }
                     else if (key == "Host" && value.Length > 0) _host = value;
-                    else if (key == "AccessToken") _accessToken = value;
+                    else if (key == "AccessTokenProtected") protectedToken = value;
+                    else if (key == "AccessToken") plaintextToken = value;
                     else if (key == "AllowNetworkAccess") _allowNetworkAccess = value == "true";
                 }
+            }
+
+            if (protectedToken.Length > 0)
+            {
+                try { _accessToken = UnprotectToken(protectedToken); }
+                catch (CryptographicException) { _accessToken = ""; }
+                catch (FormatException) { _accessToken = ""; }
+            }
+            else if (plaintextToken.Length > 0)
+            {
+                _accessToken = plaintextToken;
+                SaveSettings();
             }
         }
 
@@ -157,10 +175,37 @@ namespace PrivateDirectoryServer
                 "SharedFolder=" + _sharedFolder,
                 "Port=" + _port,
                 "Host=" + _host,
-                "AccessToken=" + _accessToken,
+                "AccessTokenProtected=" + (_accessToken.Length > 0 ? ProtectToken(_accessToken) : ""),
                 "AllowNetworkAccess=" + (_allowNetworkAccess ? "true" : "false"),
             };
             File.WriteAllLines(_settingsPath, lines);
+            RestrictSettingsAcl(_settingsPath);
+        }
+
+        /// DPAPI CurrentUser so the token is ciphertext on disk and only this
+        /// Windows account can read it. Plaintext AccessToken= lines from
+        /// older builds are migrated on load and never written again.
+        private static string ProtectToken(string token)
+        {
+            var bytes = Encoding.UTF8.GetBytes(token);
+            return Convert.ToBase64String(ProtectedData.Protect(bytes, TokenEntropy, DataProtectionScope.CurrentUser));
+        }
+
+        private static string UnprotectToken(string stored)
+        {
+            var bytes = ProtectedData.Unprotect(Convert.FromBase64String(stored), TokenEntropy, DataProtectionScope.CurrentUser);
+            return Encoding.UTF8.GetString(bytes);
+        }
+
+        /// Drop inherited ACEs so other local accounts cannot read the file.
+        private static void RestrictSettingsAcl(string path)
+        {
+            var identity = WindowsIdentity.GetCurrent();
+            if (identity == null || identity.User == null) return;
+            var security = new FileSecurity();
+            security.SetAccessRuleProtection(true, false);
+            security.AddAccessRule(new FileSystemAccessRule(identity.User, FileSystemRights.FullControl, AccessControlType.Allow));
+            File.SetAccessControl(path, security);
         }
 
         private void ToggleServer()
