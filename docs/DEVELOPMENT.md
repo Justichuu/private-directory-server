@@ -45,6 +45,7 @@ This produces `Private Directory Server.exe` at the repo root (gitignored — bu
 - Valid, suffix, and unsatisfiable byte ranges
 - Recursive search
 - Bearer authentication and browser session cookies
+- Failed-login rate limiting per client address
 - Bounded, non-overwriting upload permissions
 - Slash-style traversal and hidden-path rejection
 - Unsupported request methods

@@ -160,7 +160,14 @@ loginForm.addEventListener("submit", (event) => {
   void (async (): Promise<void> => {
     loginError.textContent = "";
     const response = await fetch("/api/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: tokenInput.value }) }).catch(() => null);
-    if (response === null || !response.ok) { loginError.textContent = response === null ? "The server could not be reached." : "The token was not accepted."; return; }
+    if (response === null || !response.ok) {
+      loginError.textContent = response === null
+        ? "The server could not be reached."
+        : response.status === 429
+          ? "Too many login attempts. Wait and try again."
+          : "The token was not accepted.";
+      return;
+    }
     tokenInput.value = ""; await boot();
   })();
 });

@@ -102,6 +102,30 @@ test("searches recursively without exposing hidden files", async () => {
   assert.deepEqual(payload.items.map((item) => item.path), ["nested/needle-notes.txt"]);
 });
 
+test("rate-limits repeated failed browser logins from the same client", async () => {
+  const token = "this-is-a-strong-test-token";
+  const started = await startServer(createConfig({ accessToken: token }));
+  try {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const failed = await fetch(`${started.baseUrl}/api/session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: "wrong-token-value" }),
+      });
+      assert.equal(failed.status, 401);
+    }
+    const blocked = await fetch(`${started.baseUrl}/api/session`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+    assert.equal(blocked.status, 429);
+    assert.match(blocked.headers.get("retry-after") ?? "", /^[1-9]\d*$/u);
+  } finally {
+    await stopServer(started.server);
+  }
+});
+
 test("requires authentication and establishes an HTTP-only session", async () => {
   const token = "this-is-a-strong-test-token";
   const started = await startServer(createConfig({ accessToken: token }));

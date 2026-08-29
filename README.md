@@ -115,6 +115,7 @@ Bearer clients can send `Authorization: Bearer <token>`. Access tokens are never
 - Hidden path segments are blocked unless explicitly enabled.
 - Uploads are disabled by default, size-limited, and cannot overwrite an existing file.
 - Browser sessions use `HttpOnly` and `SameSite=Strict` cookies.
+- Failed browser logins are limited to five attempts per client in 15 minutes.
 - Security headers restrict framing to same-origin previews, block cross-origin resource use, and prevent unexpected content sniffing.
 - The unauthenticated health endpoint exposes only `{ "status": "ready" }`.
 

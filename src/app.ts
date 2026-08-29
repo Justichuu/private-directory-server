@@ -8,6 +8,7 @@ import { securityHeaders, sendError, sendJson } from "./http-utils";
 import { resolveSafePath } from "./path-service";
 import { parseByteRange } from "./range-service";
 import { BodyLimitError, readBody, readJsonBody } from "./request-body";
+import { loginClientId, LoginRateLimiter } from "./login-rate-limit";
 import { searchDirectory } from "./search-service";
 import { type ServerConfig, type SessionInfo } from "./types";
 
@@ -94,15 +95,28 @@ async function serveSharedFile(request: IncomingMessage, response: ServerRespons
   await serveFile({ request, response, filePath: resolution.absolutePath, disposition });
 }
 
-async function handleLogin(request: IncomingMessage, response: ServerResponse, config: ServerConfig): Promise<void> {
+async function handleLogin(request: IncomingMessage, response: ServerResponse, config: ServerConfig, limiter: LoginRateLimiter): Promise<void> {
   if (config.accessToken === null) return sendJson(response, 200, { ok: true });
+  const clientId = loginClientId(request.socket.remoteAddress);
+  const retryAfter = limiter.retryAfterSeconds(clientId);
+  if (retryAfter !== null) {
+    response.setHeader("Retry-After", String(retryAfter));
+    sendJson(response, 429, { error: "Too many login attempts. Try again later." });
+    return;
+  }
   try {
     const payload = await readJsonBody(request);
     const submittedToken = typeof payload === "object" && payload !== null && "token" in payload && typeof payload.token === "string" ? payload.token : null;
-    if (submittedToken === null || !verifyAccessToken(submittedToken, config.accessToken)) return sendJson(response, 401, { error: "Invalid access token." });
+    if (submittedToken === null || !verifyAccessToken(submittedToken, config.accessToken)) {
+      limiter.recordFailure(clientId);
+      sendJson(response, 401, { error: "Invalid access token." });
+      return;
+    }
+    limiter.recordSuccess(clientId);
     response.setHeader("Set-Cookie", createSessionCookie(config.accessToken));
     sendJson(response, 200, { ok: true });
   } catch (error: unknown) {
+    limiter.recordFailure(clientId);
     sendJson(response, error instanceof BodyLimitError ? 413 : 400, { error: error instanceof Error ? error.message : "Invalid login request." });
   }
 }
@@ -139,6 +153,7 @@ function sessionInfo(request: IncomingMessage, config: ServerConfig): SessionInf
 
 /** Creates the authenticated request handler for one immutable server configuration. */
 export function createRequestHandler(config: ServerConfig): (request: IncomingMessage, response: ServerResponse) => void {
+  const loginLimiter = new LoginRateLimiter();
   return (request, response): void => {
     addRequestLogging(request, response, config.logRequests);
     void (async (): Promise<void> => {
@@ -146,7 +161,7 @@ export function createRequestHandler(config: ServerConfig): (request: IncomingMe
       if (url === null) return sendError(response, 400, "Invalid request URL.");
       if (url.pathname === "/api/health" && request.method === "GET") return sendJson(response, 200, { status: "ready" });
       if (url.pathname === "/api/session" && request.method === "GET") return sendJson(response, 200, sessionInfo(request, config));
-      if (url.pathname === "/api/session" && request.method === "POST") return handleLogin(request, response, config);
+      if (url.pathname === "/api/session" && request.method === "POST") return handleLogin(request, response, config, loginLimiter);
       if (url.pathname === "/api/session" && request.method === "DELETE") {
         response.setHeader("Set-Cookie", clearSessionCookie());
         return sendJson(response, 200, { ok: true });

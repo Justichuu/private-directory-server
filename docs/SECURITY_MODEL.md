@@ -33,6 +33,7 @@ Uploads are absent in `read-only` mode. Upload mode requires a complete body bel
 
 ### Resource bounds
 
+- Failed browser logins are limited to five attempts per client address in a 15-minute window; further attempts return 429 until the window expires or a later successful login clears the record.
 - Login JSON is limited to 8 KiB.
 - Upload size is configurable and defaults to 100 MiB.
 - Search returns at most 200 matches, descends at most 20 levels, and examines at most 10,000 entries.
