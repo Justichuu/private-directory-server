@@ -23,6 +23,7 @@ function createConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
     accessMode: "read-only",
     logRequests: false,
     maxUploadBytes: 1024,
+    cookieSecure: false,
     ...overrides,
   };
 }
@@ -142,8 +143,26 @@ test("requires authentication and establishes an HTTP-only session", async () =>
     const cookie = login.headers.get("set-cookie") ?? "";
     assert.match(cookie, /HttpOnly/u);
     assert.match(cookie, /SameSite=Strict/u);
+    assert.doesNotMatch(cookie, /Secure/u);
     const session = await fetch(`${started.baseUrl}/api/files`, { headers: { Cookie: cookie.split(";")[0] ?? "" } });
     assert.equal(session.status, 200);
+    const proxied = await fetch(`${started.baseUrl}/api/session`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Forwarded-Proto": "https" },
+      body: JSON.stringify({ token }),
+    });
+    assert.match(proxied.headers.get("set-cookie") ?? "", /Secure/u);
+    const forced = await startServer(createConfig({ accessToken: token, cookieSecure: true }));
+    try {
+      const secureLogin = await fetch(`${forced.baseUrl}/api/session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      assert.match(secureLogin.headers.get("set-cookie") ?? "", /Secure/u);
+    } finally {
+      await stopServer(forced.server);
+    }
   } finally {
     await stopServer(started.server);
   }

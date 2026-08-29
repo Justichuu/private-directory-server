@@ -8,4 +8,7 @@ test("requires a strong access token for non-loopback binding", () => {
   const config = loadConfig({ HOST: "0.0.0.0", ACCESS_TOKEN: "a-secure-token-value", ACCESS_MODE: "upload" }, process.cwd());
   assert.equal(config.accessMode, "upload");
   assert.equal(config.host, "0.0.0.0");
+  assert.equal(config.cookieSecure, false);
+  const secure = loadConfig({ COOKIE_SECURE: "true", ACCESS_TOKEN: "a-secure-token-value" }, process.cwd());
+  assert.equal(secure.cookieSecure, true);
 });

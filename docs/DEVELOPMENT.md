@@ -44,7 +44,7 @@ This produces `Private Directory Server.exe` at the repo root (gitignored — bu
 - Full downloads and security headers
 - Valid, suffix, and unsatisfiable byte ranges
 - Recursive search
-- Bearer authentication and browser session cookies
+- Bearer authentication and browser session cookies, including `Secure` behind HTTPS or `COOKIE_SECURE`
 - Failed-login rate limiting per client address
 - Bounded, non-overwriting upload permissions
 - Slash-style traversal and hidden-path rejection

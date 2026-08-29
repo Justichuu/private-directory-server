@@ -105,6 +105,7 @@ Open `http://127.0.0.1:8000`. Keep the volume read-only unless optional uploads 
 | `MAX_UPLOAD_BYTES` | `104857600` | Maximum upload body size in bytes |
 | `SHOW_HIDDEN` | `false` | Include dotfiles and dot-directories when `true` |
 | `LOG_REQUESTS` | `false` | Log client address, method, path, status, and duration when `true` |
+| `COOKIE_SECURE` | `false` | Mark the session cookie `Secure`; also happens when the request is HTTPS or `X-Forwarded-Proto` is `https` |
 
 Bearer clients can send `Authorization: Bearer <token>`. Access tokens are never accepted in URLs or written to request logs.
 

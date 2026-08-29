@@ -55,6 +55,13 @@ Configuration is read once at startup from environment variables. Invalid securi
 - Set exactly to `true` to log client address, method, URL path, response status, and elapsed milliseconds.
 - Query strings and access tokens are not logged.
 
+### `COOKIE_SECURE`
+
+- Default: `false`
+- Set exactly to `true` to add `Secure` to session cookies even on the local HTTP listener.
+- Cookies also receive `Secure` when the request socket is TLS or the first `X-Forwarded-Proto` value is `https`.
+- Leave this unset for direct HTTP on a trusted LAN so the browser will store the session.
+
 ## Recommended profiles
 
 ### Local read-only
