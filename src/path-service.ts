@@ -1,4 +1,4 @@
-import { promises as fs } from "node:fs";
+import { promises as fs, type Dirent } from "node:fs";
 import path from "node:path";
 import { type PathResolution } from "./types";
 
@@ -9,9 +9,49 @@ function containsHiddenSegment(relativePath: string): boolean {
     .some((segment) => segment.startsWith("."));
 }
 
-function isWithinRoot(rootPath: string, candidatePath: string): boolean {
+export function isWithinRoot(rootPath: string, candidatePath: string): boolean {
   const relative = path.relative(rootPath, candidatePath);
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+/** Lists a directory entry when it is a regular file/directory or an in-root symlink. */
+export async function resolveVisibleEntry(options: {
+  readonly rootDirectory: string;
+  readonly directoryPath: string;
+  readonly entry: Dirent;
+  readonly showHidden: boolean;
+}): Promise<{
+  readonly name: string;
+  readonly type: "directory" | "file";
+  readonly size: number;
+  readonly modifiedAt: Date;
+  readonly descend: boolean;
+} | null> {
+  if (!options.showHidden && options.entry.name.startsWith(".")) return null;
+  const absoluteEntryPath = path.join(options.directoryPath, options.entry.name);
+  if (options.entry.isSymbolicLink()) {
+    const realPath = await fs.realpath(absoluteEntryPath).catch(() => null);
+    if (realPath === null || !isWithinRoot(options.rootDirectory, realPath)) return null;
+    const stats = await fs.stat(realPath).catch(() => null);
+    if (stats === null || (!stats.isFile() && !stats.isDirectory())) return null;
+    return {
+      name: options.entry.name,
+      type: stats.isDirectory() ? "directory" : "file",
+      size: stats.size,
+      modifiedAt: stats.mtime,
+      descend: false,
+    };
+  }
+  if (!options.entry.isFile() && !options.entry.isDirectory()) return null;
+  const stats = await fs.stat(absoluteEntryPath).catch(() => null);
+  if (stats === null) return null;
+  return {
+    name: options.entry.name,
+    type: options.entry.isDirectory() ? "directory" : "file",
+    size: stats.size,
+    modifiedAt: stats.mtime,
+    descend: options.entry.isDirectory(),
+  };
 }
 
 /**

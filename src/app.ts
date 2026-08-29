@@ -76,7 +76,7 @@ async function serveListing(response: ServerResponse, url: URL, config: ServerCo
   if (resolution.status !== "resolved") return sendJson(response, resolution.status === "forbidden" ? 403 : 404, { error: resolution.reason });
   const stats = await fs.stat(resolution.absolutePath);
   if (!stats.isDirectory()) return sendJson(response, 400, { error: "The requested path is not a directory." });
-  const items = await listDirectory({ absolutePath: resolution.absolutePath, relativePath: resolution.relativePath, showHidden: config.showHidden });
+  const items = await listDirectory({ rootDirectory: config.rootDirectory, absolutePath: resolution.absolutePath, relativePath: resolution.relativePath, showHidden: config.showHidden });
   sendJson(response, 200, { path: resolution.relativePath, items });
 }
 
@@ -85,7 +85,7 @@ async function serveSearch(response: ServerResponse, url: URL, config: ServerCon
   if (query.length < 2) return sendJson(response, 400, { error: "Search requires at least two characters." });
   const resolution = await resolveDirectory(url, config);
   if (resolution.status !== "resolved") return sendJson(response, resolution.status === "forbidden" ? 403 : 404, { error: resolution.reason });
-  const items = await searchDirectory({ absolutePath: resolution.absolutePath, relativePath: resolution.relativePath, query, showHidden: config.showHidden });
+  const items = await searchDirectory({ rootDirectory: config.rootDirectory, absolutePath: resolution.absolutePath, relativePath: resolution.relativePath, query, showHidden: config.showHidden });
   sendJson(response, 200, { path: resolution.relativePath, query, items });
 }
 

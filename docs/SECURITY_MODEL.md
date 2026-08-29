@@ -19,7 +19,7 @@
 
 ### Path confinement
 
-Requested paths are URL-decoded, normalized, resolved against the real root, and checked with `path.relative`. Hidden segments are rejected by default. Existing targets are resolved through `realpath`, preventing symlinks from escaping the root. Upload paths normalize both slash styles before checking the real parent directory.
+Requested paths are URL-decoded, normalized, resolved against the real root, and checked with `path.relative`. Hidden segments are rejected by default. Existing targets are resolved through `realpath`, preventing symlinks from escaping the root. Directory listings and search include a symlink name only when that real path stays inside the root, and search does not descend through symlink directories. Upload paths normalize both slash styles before checking the real parent directory.
 
 ### Authentication
 

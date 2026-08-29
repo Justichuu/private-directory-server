@@ -188,32 +188,41 @@ test("supports bounded, non-overwriting uploads only when enabled", async () => 
 });
 
 test("blocks symbolic links whose real target is outside the shared root", async (t) => {
+  const isolatedRoot = await fs.mkdtemp(path.join(tmpdir(), "private-directory-server-links-"));
   const outsideDirectory = await fs.mkdtemp(path.join(tmpdir(), "private-directory-server-outside-"));
+  const insideFile = path.join(isolatedRoot, "hello.txt");
   const outsideFile = path.join(outsideDirectory, "secret.txt");
-  const escapeLink = path.join(rootDirectory, "escape-link");
-  const aliasLink = path.join(rootDirectory, "hello-alias");
+  const escapeLink = path.join(isolatedRoot, "escape-link");
+  const aliasLink = path.join(isolatedRoot, "hello-alias");
+  await fs.writeFile(insideFile, "hello world");
   await fs.writeFile(outsideFile, "should-not-be-readable");
   try {
     await fs.symlink(outsideFile, escapeLink);
-    await fs.symlink(path.join(rootDirectory, "hello.txt"), aliasLink);
+    await fs.symlink(insideFile, aliasLink);
   } catch {
     t.skip("symbolic links are not available on this platform");
+    await fs.rm(isolatedRoot, { recursive: true, force: true });
     await fs.rm(outsideDirectory, { recursive: true, force: true });
     return;
   }
+  const started = await startServer(createConfig({ rootDirectory: isolatedRoot }));
   try {
-    const escaped = await fetch(`${baseUrl}/files/escape-link`);
+    const escaped = await fetch(`${started.baseUrl}/files/escape-link`);
     assert.equal(escaped.status, 403);
     assert.equal(await fs.readFile(outsideFile, "utf8"), "should-not-be-readable");
-    const listing = await fetch(`${baseUrl}/api/files`);
+    const listing = await fetch(`${started.baseUrl}/api/files`);
     const payload = await listing.json() as { items: ReadonlyArray<{ name: string }> };
     assert.equal(payload.items.some((item) => item.name === "escape-link"), false);
-    const aliased = await fetch(`${baseUrl}/files/hello-alias`);
+    assert.equal(payload.items.some((item) => item.name === "hello-alias"), true);
+    const search = await fetch(`${started.baseUrl}/api/search?q=hello-alias`);
+    const searchPayload = await search.json() as { items: ReadonlyArray<{ name: string }> };
+    assert.deepEqual(searchPayload.items.map((item) => item.name), ["hello-alias"]);
+    const aliased = await fetch(`${started.baseUrl}/files/hello-alias`);
     assert.equal(aliased.status, 200);
     assert.equal(await aliased.text(), "hello world");
   } finally {
-    await fs.unlink(escapeLink).catch(() => undefined);
-    await fs.unlink(aliasLink).catch(() => undefined);
+    await stopServer(started.server);
+    await fs.rm(isolatedRoot, { recursive: true, force: true });
     await fs.rm(outsideDirectory, { recursive: true, force: true });
   }
 });
