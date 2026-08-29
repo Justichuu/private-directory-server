@@ -168,6 +168,37 @@ test("supports bounded, non-overwriting uploads only when enabled", async () => 
   }
 });
 
+test("blocks symbolic links whose real target is outside the shared root", async (t) => {
+  const outsideDirectory = await fs.mkdtemp(path.join(tmpdir(), "private-directory-server-outside-"));
+  const outsideFile = path.join(outsideDirectory, "secret.txt");
+  const escapeLink = path.join(rootDirectory, "escape-link");
+  const aliasLink = path.join(rootDirectory, "hello-alias");
+  await fs.writeFile(outsideFile, "should-not-be-readable");
+  try {
+    await fs.symlink(outsideFile, escapeLink);
+    await fs.symlink(path.join(rootDirectory, "hello.txt"), aliasLink);
+  } catch {
+    t.skip("symbolic links are not available on this platform");
+    await fs.rm(outsideDirectory, { recursive: true, force: true });
+    return;
+  }
+  try {
+    const escaped = await fetch(`${baseUrl}/files/escape-link`);
+    assert.equal(escaped.status, 403);
+    assert.equal(await fs.readFile(outsideFile, "utf8"), "should-not-be-readable");
+    const listing = await fetch(`${baseUrl}/api/files`);
+    const payload = await listing.json() as { items: ReadonlyArray<{ name: string }> };
+    assert.equal(payload.items.some((item) => item.name === "escape-link"), false);
+    const aliased = await fetch(`${baseUrl}/files/hello-alias`);
+    assert.equal(aliased.status, 200);
+    assert.equal(await aliased.text(), "hello world");
+  } finally {
+    await fs.unlink(escapeLink).catch(() => undefined);
+    await fs.unlink(aliasLink).catch(() => undefined);
+    await fs.rm(outsideDirectory, { recursive: true, force: true });
+  }
+});
+
 test("blocks traversal, hidden files, and unsupported methods", async () => {
   const [traversal, hidden, post] = await Promise.all([
     fetch(`${baseUrl}/api/files?path=${encodeURIComponent("../")}`),
