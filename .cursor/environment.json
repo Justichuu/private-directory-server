@@ -4,8 +4,8 @@
   "terminals": [
     {
       "name": "server",
-      "command": "DIRECTORY_ROOT=/workspace PORT=8000 LOG_REQUESTS=true node dist/src/server.js",
-      "description": "Runs the compiled file server on http://127.0.0.1:8000 serving the repository root (read-only). Rebuild with 'npm run build' after editing src, then restart this terminal."
+      "command": "PORT=8000 LOG_REQUESTS=true node dist/src/server.js",
+      "description": "Runs the compiled file server on http://127.0.0.1:8000 serving the current directory (read-only). Rebuild with 'npm run build' after editing src, then restart this terminal."
     }
   ],
   "ports": [

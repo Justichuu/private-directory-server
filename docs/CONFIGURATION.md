@@ -67,14 +67,14 @@ Configuration is read once at startup from environment variables. Invalid securi
 ### Local read-only
 
 ```powershell
-$env:DIRECTORY_ROOT = 'D:\Files'
+$env:DIRECTORY_ROOT = $PWD
 cmd /c npm start
 ```
 
 ### Trusted LAN read-only
 
 ```powershell
-$env:DIRECTORY_ROOT = 'D:\Files'
+$env:DIRECTORY_ROOT = $PWD
 $env:HOST = '0.0.0.0'
 $env:ACCESS_TOKEN = '<strong unique token>'
 cmd /c npm start
@@ -83,7 +83,7 @@ cmd /c npm start
 ### Trusted LAN with uploads
 
 ```powershell
-$env:DIRECTORY_ROOT = 'D:\Incoming'
+$env:DIRECTORY_ROOT = $PWD
 $env:HOST = '0.0.0.0'
 $env:ACCESS_TOKEN = '<strong unique token>'
 $env:ACCESS_MODE = 'upload'

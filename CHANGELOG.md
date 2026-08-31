@@ -4,35 +4,26 @@ This project follows semantic versioning. Dates use the ISO `YYYY-MM-DD` format.
 
 ## Unreleased
 
-## 1.2.0 - 2026-08-29
-
 ### Added
 
 - Automatic dependency installation on first use of `npm start`, `test`, `check`, `package`, or the new `menu` script — a fresh checkout no longer needs a separate `npm ci` step.
 - `npm run menu`, an interactive numbered menu covering start/test/check/build/package.
 - Double-click wrappers (`start`/`test`/`menu` `.cmd` and `.sh`) for anyone who would rather not use a terminal.
-- A Windows system-tray desktop launcher (`gui/Launcher.cs`, built with the C# compiler bundled in .NET Framework — no new npm dependency): Start/Stop, Open in Browser, choose the shared folder, view the log, and exit, with no console window ever shown. Build it locally with `gui\build.cmd`.
+- A Windows system-tray desktop launcher (`gui/Launcher.cs`, built with the C# compiler bundled in .NET Framework — no new npm dependency): Start/Stop, Open in Browser, choose the shared folder, view the log, and exit, with no console window ever shown. Build it locally with `gui\build.cmd`, or download it from a GitHub release.
 - "Show Phone Address / QR Code..." in the tray app: turns on network access (with a confirmation prompt and an auto-generated access token, per the existing non-loopback token requirement) and shows a scannable QR code plus copyable address/token for opening the server on a phone on the same Wi-Fi network.
 - `COOKIE_SECURE` and automatic `Secure` session cookies when the request is TLS or `X-Forwarded-Proto` is `https`.
-- Directory listings and search show symlink aliases whose real path stays inside `DIRECTORY_ROOT`.
 
 ### Security
 
 - The tray launcher stores the LAN token as DPAPI ciphertext for the current Windows account and restricts `gui/settings.txt` to that account. A leftover plaintext `AccessToken=` line is migrated on load.
 - Failed browser logins are limited to five attempts per client address in a 15-minute window.
 - Session cookies stay sendable on direct HTTP and gain `Secure` behind a TLS proxy or `COOKIE_SECURE=true`.
-- HTTP tests cover symlink escape and in-root alias visibility.
-- Hidden-file policy now applies to the real path, so an alias cannot expose a dotfile. Listings and search `lstat` every entry before following it.
-- Malformed session cookies return 401 instead of 500. Logout clears both Secure and non-Secure cookies. Failed-login records expire out of memory with the window.
+- Hidden-file policy now applies to the real path, so a symlink cannot expose a dotfile.
+- HTTP tests cover symlink escape. Malformed session cookies return 401 instead of 500. Logout clears both Secure and non-Secure cookies. Failed-login records expire out of memory with the window.
 
 ### Changed
 
-- README and package metadata name ChuuMind as the project home. Clone-from-source is the documented Windows path until a `v*` tag publishes GitHub Release archives.
-
-### Verification
-
-- Strict server and browser TypeScript checks passed.
-- Configuration, rate-limit, and HTTP integration tests passed.
+- Package metadata names ChuuMind as the project home.
 
 ## 1.1.0 - 2026-08-02
 

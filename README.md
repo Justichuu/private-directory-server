@@ -5,7 +5,7 @@
 
 A free, open-source, dependency-free runtime for browsing files from your own computer. It provides token authentication, recursive search, mobile-friendly previews, resumable media streaming, and optional non-overwriting uploads while keeping localhost-only, read-only behavior as the default.
 
-This is a ChuuMind project ([chuumind.com](https://chuumind.com)). The intended catalog home is the Network shelf there. This is openly a vibe-coded project: it is being shaped through human direction, testing, and judgment in collaboration with multiple AI development tools. That process does not replace verification. Security-sensitive behavior is documented, tested, and reviewed against the running application before release.
+This is a ChuuMind project ([chuumind.com](https://chuumind.com)). This is openly a vibe-coded project: it is being shaped through human direction, testing, and judgment in collaboration with multiple AI development tools. That process does not replace verification. Security-sensitive behavior is documented, tested, and reviewed against the running application before release.
 
 ![Private Directory Server browser](docs/screenshot.png)
 
@@ -13,7 +13,7 @@ This is a ChuuMind project ([chuumind.com](https://chuumind.com)). The intended 
 
 **Windows, no terminal at all:**
 
-1. `git clone` this repo, or download a [GitHub release](https://github.com/Justichuu/private-directory-server/releases/latest) after one has been published.
+1. [Download the latest release](https://github.com/Justichuu/private-directory-server/releases/latest) or `git clone` this repo.
 2. Double-click `gui\build.cmd` once. It compiles a small desktop app using tools already built into Windows — nothing extra to install.
 3. Double-click the new `Private Directory Server.exe`. The first time, a small window tells you where to find it: **Windows hides new tray icons by default** — click the `^` arrow near the clock to reveal it. Right-click the icon and choose **Start Server**; it asks you to browse to and pick a folder, then serves it. Right-click again to stop, reopen it in your browser, change the folder, or quit.
 
@@ -56,7 +56,7 @@ Requires Node.js 22 or newer.
 git clone https://github.com/Justichuu/private-directory-server.git
 Set-Location private-directory-server
 cmd /c npm ci
-$env:DIRECTORY_ROOT = 'D:\Path\To\Share'
+$env:DIRECTORY_ROOT = $PWD
 cmd /c npm start
 ```
 
@@ -64,9 +64,9 @@ Open `http://127.0.0.1:8000`.
 
 ## Run a release download
 
-When a `v*` tag has been pushed, download and extract the `.zip` or `.tar.gz` from GitHub Releases, then set `DIRECTORY_ROOT` and run `start.cmd` on Windows or `./start.sh` on Linux/macOS. Release bundles contain compiled JavaScript and need no package installation. Until that tag exists, use the source checkout path above.
+Download and extract the `.zip` or `.tar.gz` from GitHub Releases, then set `DIRECTORY_ROOT` and run `start.cmd` on Windows or `./start.sh` on Linux/macOS. Release bundles contain compiled JavaScript and need no package installation.
 
-Windows users who want the tray app without building anything can instead download `private-directory-server-windows-gui-<version>.zip` after that release exists — it's the same release bundle with `Private Directory Server.exe` already built in. Extract it and double-click the exe. From source, `gui\build.cmd` builds the same launcher.
+Windows users who want the tray app without building anything can instead download `private-directory-server-windows-gui-<version>.zip` — it's the same release bundle with `Private Directory Server.exe` already built in. Extract it and double-click the exe.
 
 ## Private-network access
 
@@ -75,7 +75,7 @@ Create a strong token and bind to the network:
 ```powershell
 $env:ACCESS_TOKEN = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(24)).ToLower()
 $env:HOST = '0.0.0.0'
-$env:DIRECTORY_ROOT = 'D:\Path\To\Share'
+$env:DIRECTORY_ROOT = $PWD
 cmd /c npm start
 ```
 
@@ -87,7 +87,7 @@ Enter that token in the browser login screen. The browser stores only an opaque 
 docker build -t private-directory-server .
 docker run --rm -p 8000:8000 `
   -e ACCESS_TOKEN='replace-with-a-strong-token' `
-  -v 'D:\Path\To\Share:/shared:ro' `
+  -v "${PWD}:/shared:ro" `
   private-directory-server
 ```
 
