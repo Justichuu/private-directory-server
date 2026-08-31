@@ -1,49 +1,17 @@
-import { promises as fs, type Dirent } from "node:fs";
+import { promises as fs } from "node:fs";
 import path from "node:path";
 import { type PathResolution } from "./types";
 
-export function containsHiddenSegment(relativePath: string): boolean {
+function containsHiddenSegment(relativePath: string): boolean {
   return relativePath
     .split(/[\\/]/u)
     .filter(Boolean)
     .some((segment) => segment.startsWith("."));
 }
 
-export function isWithinRoot(rootPath: string, candidatePath: string): boolean {
+function isWithinRoot(rootPath: string, candidatePath: string): boolean {
   const relative = path.relative(rootPath, candidatePath);
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
-}
-
-/** Lists a directory entry when it is a regular file/directory or an in-root symlink. */
-export async function resolveVisibleEntry(options: {
-  readonly rootDirectory: string;
-  readonly directoryPath: string;
-  readonly entry: Dirent;
-  readonly showHidden: boolean;
-}): Promise<{
-  readonly name: string;
-  readonly type: "directory" | "file";
-  readonly size: number;
-  readonly modifiedAt: Date;
-  readonly descend: boolean;
-} | null> {
-  if (!options.showHidden && options.entry.name.startsWith(".")) return null;
-  const absoluteEntryPath = path.join(options.directoryPath, options.entry.name);
-  const linkStats = await fs.lstat(absoluteEntryPath).catch(() => null);
-  if (linkStats === null) return null;
-  const realPath = await fs.realpath(absoluteEntryPath).catch(() => null);
-  if (realPath === null || !isWithinRoot(options.rootDirectory, realPath)) return null;
-  const publishedRelative = path.relative(options.rootDirectory, realPath).split(path.sep).join("/");
-  if (!options.showHidden && containsHiddenSegment(publishedRelative)) return null;
-  const stats = await fs.stat(realPath).catch(() => null);
-  if (stats === null || (!stats.isFile() && !stats.isDirectory())) return null;
-  return {
-    name: options.entry.name,
-    type: stats.isDirectory() ? "directory" : "file",
-    size: stats.size,
-    modifiedAt: stats.mtime,
-    descend: stats.isDirectory() && !linkStats.isSymbolicLink(),
-  };
 }
 
 /**

@@ -19,7 +19,7 @@
 
 ### Path confinement
 
-Requested paths are URL-decoded, normalized, resolved against the real root, and checked with `path.relative`. Hidden segments are rejected on both the requested path and the real path, so an in-root alias cannot expose a dotfile. Existing targets are resolved through `realpath`, preventing symlinks from escaping the root. Directory listings and search include a name only when `lstat` plus `realpath` stay inside the root and the real path is not hidden; search does not descend through symbolic links or other reparse points reported as links. Upload paths normalize both slash styles before checking the real parent directory.
+Requested paths are URL-decoded, normalized, resolved against the real root, and checked with `path.relative`. Hidden segments are rejected on both the requested path and the real path, so a symlink cannot expose a dotfile. Existing targets are resolved through `realpath`, preventing symlinks from escaping the root. Upload paths normalize both slash styles before checking the real parent directory.
 
 ### Authentication
 

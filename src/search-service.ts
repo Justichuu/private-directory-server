@@ -1,6 +1,5 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { resolveVisibleEntry } from "./path-service";
 import { type DirectoryItem } from "./types";
 
 const MAX_RESULTS = 200;
@@ -13,9 +12,8 @@ interface SearchDirectory {
   readonly depth: number;
 }
 
-/** Recursively searches accessible names. In-root symlink aliases match; their targets are not descended. */
+/** Recursively searches accessible names without following symbolic links. */
 export async function searchDirectory(options: {
-  readonly rootDirectory: string;
   readonly absolutePath: string;
   readonly relativePath: string;
   readonly query: string;
@@ -23,8 +21,6 @@ export async function searchDirectory(options: {
 }): Promise<readonly DirectoryItem[]> {
   const normalizedQuery = options.query.trim().toLocaleLowerCase();
   if (normalizedQuery.length < 2) return [];
-  const rootPath = await fs.realpath(options.rootDirectory).catch(() => null);
-  if (rootPath === null) return [];
   const pending: SearchDirectory[] = [{ absolutePath: options.absolutePath, relativePath: options.relativePath, depth: 0 }];
   const results: DirectoryItem[] = [];
   let scannedEntries = 0;
@@ -36,30 +32,23 @@ export async function searchDirectory(options: {
     for (const entry of entries) {
       scannedEntries += 1;
       if (scannedEntries > MAX_SCANNED_ENTRIES) break;
-      const visible = await resolveVisibleEntry({
-        rootDirectory: rootPath,
-        directoryPath: current.absolutePath,
-        entry,
-        showHidden: options.showHidden,
-      });
-      if (visible === null) continue;
-      const relativeEntryPath = [current.relativePath, visible.name].filter(Boolean).join("/");
-      if (visible.name.toLocaleLowerCase().includes(normalizedQuery)) {
+      if ((!options.showHidden && entry.name.startsWith(".")) || (!entry.isFile() && !entry.isDirectory())) continue;
+      const absoluteEntryPath = path.join(current.absolutePath, entry.name);
+      const relativeEntryPath = [current.relativePath, entry.name].filter(Boolean).join("/");
+      const stats = await fs.stat(absoluteEntryPath).catch(() => null);
+      if (stats === null) continue;
+      if (entry.name.toLocaleLowerCase().includes(normalizedQuery)) {
         results.push({
-          name: visible.name,
+          name: entry.name,
           path: relativeEntryPath,
-          type: visible.type,
-          size: visible.size,
-          modifiedAt: visible.modifiedAt.toISOString(),
+          type: entry.isDirectory() ? "directory" : "file",
+          size: stats.size,
+          modifiedAt: stats.mtime.toISOString(),
         });
         if (results.length >= MAX_RESULTS) break;
       }
-      if (visible.descend && current.depth < MAX_DEPTH) {
-        pending.push({
-          absolutePath: path.join(current.absolutePath, visible.name),
-          relativePath: relativeEntryPath,
-          depth: current.depth + 1,
-        });
+      if (entry.isDirectory() && current.depth < MAX_DEPTH) {
+        pending.push({ absolutePath: absoluteEntryPath, relativePath: relativeEntryPath, depth: current.depth + 1 });
       }
     }
   }

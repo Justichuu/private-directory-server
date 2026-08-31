@@ -1,32 +1,30 @@
 import { promises as fs } from "node:fs";
-import { resolveVisibleEntry } from "./path-service";
+import path from "node:path";
 import { type DirectoryItem } from "./types";
 
-/** Lists regular files, directories, and symbolic links whose real target stays in-root. */
+/** Lists regular files and directories, omitting inaccessible entries. */
 export async function listDirectory(options: {
-  readonly rootDirectory: string;
   readonly absolutePath: string;
   readonly relativePath: string;
   readonly showHidden: boolean;
 }): Promise<readonly DirectoryItem[]> {
-  const rootPath = await fs.realpath(options.rootDirectory).catch(() => null);
-  if (rootPath === null) return [];
   const entries = await fs.readdir(options.absolutePath, { withFileTypes: true });
+  const visibleEntries = entries.filter(
+    (entry) => (options.showHidden || !entry.name.startsWith(".")) && (entry.isDirectory() || entry.isFile()),
+  );
+
   const items = await Promise.all(
-    entries.map(async (entry): Promise<DirectoryItem | null> => {
-      const visible = await resolveVisibleEntry({
-        rootDirectory: rootPath,
-        directoryPath: options.absolutePath,
-        entry,
-        showHidden: options.showHidden,
-      });
-      if (visible === null) return null;
+    visibleEntries.map(async (entry): Promise<DirectoryItem | null> => {
+      const absoluteEntryPath = path.join(options.absolutePath, entry.name);
+      const stats = await fs.stat(absoluteEntryPath).catch(() => null);
+      if (stats === null) return null;
+      const itemPath = [options.relativePath, entry.name].filter(Boolean).join("/");
       return {
-        name: visible.name,
-        path: [options.relativePath, visible.name].filter(Boolean).join("/"),
-        type: visible.type,
-        size: visible.size,
-        modifiedAt: visible.modifiedAt.toISOString(),
+        name: entry.name,
+        path: itemPath,
+        type: entry.isDirectory() ? "directory" : "file",
+        size: stats.size,
+        modifiedAt: stats.mtime.toISOString(),
       };
     }),
   );

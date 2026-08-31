@@ -28,8 +28,8 @@ Configured DIRECTORY_ROOT
 | `src/config.ts` | Parses and validates environment configuration |
 | `src/auth-service.ts` | Constant-time token verification and opaque session cookies |
 | `src/path-service.ts` | URL decoding, hidden-path policy, real-path confinement, and symlink escape prevention |
-| `src/directory-service.ts` | Non-recursive directory listing and metadata, including in-root symlink aliases |
-| `src/search-service.ts` | Bounded breadth-first recursive name search; in-root symlink aliases are listed but not descended |
+| `src/directory-service.ts` | Non-recursive directory listing and metadata |
+| `src/search-service.ts` | Bounded breadth-first recursive name search without following symlinks |
 | `src/range-service.ts` | Single byte-range parsing and validation |
 | `src/request-body.ts` | Bounded raw and JSON request-body reads |
 | `src/http-utils.ts` | JSON, error, cache, and browser security headers |
