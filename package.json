@@ -4,6 +4,7 @@
   "description": "A secure local directory browser with previews, streaming, and optional uploads.",
   "private": true,
   "license": "MIT",
+  "homepage": "https://chuumind.com",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Justichuu/private-directory-server.git"

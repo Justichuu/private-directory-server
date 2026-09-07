@@ -5,7 +5,7 @@
 
 A free, open-source, dependency-free runtime for browsing files from your own computer. It provides token authentication, recursive search, mobile-friendly previews, resumable media streaming, and optional non-overwriting uploads while keeping localhost-only, read-only behavior as the default.
 
-This is openly a vibe-coded project: it is being shaped through human direction, testing, and judgment in collaboration with multiple AI development tools. That process does not replace verification. Security-sensitive behavior is documented, tested, and reviewed against the running application before release.
+This is a ChuuMind project ([chuumind.com](https://chuumind.com)). This is openly a vibe-coded project: it is being shaped through human direction, testing, and judgment in collaboration with multiple AI development tools. That process does not replace verification. Security-sensitive behavior is documented, tested, and reviewed against the running application before release.
 
 ![Private Directory Server browser](docs/screenshot.png)
 
@@ -56,7 +56,7 @@ Requires Node.js 22 or newer.
 git clone https://github.com/Justichuu/private-directory-server.git
 Set-Location private-directory-server
 cmd /c npm ci
-$env:DIRECTORY_ROOT = 'D:\Path\To\Share'
+$env:DIRECTORY_ROOT = $PWD
 cmd /c npm start
 ```
 
@@ -75,7 +75,7 @@ Create a strong token and bind to the network:
 ```powershell
 $env:ACCESS_TOKEN = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(24)).ToLower()
 $env:HOST = '0.0.0.0'
-$env:DIRECTORY_ROOT = 'D:\Path\To\Share'
+$env:DIRECTORY_ROOT = $PWD
 cmd /c npm start
 ```
 
@@ -87,7 +87,7 @@ Enter that token in the browser login screen. The browser stores only an opaque 
 docker build -t private-directory-server .
 docker run --rm -p 8000:8000 `
   -e ACCESS_TOKEN='replace-with-a-strong-token' `
-  -v 'D:\Path\To\Share:/shared:ro' `
+  -v "${PWD}:/shared:ro" `
   private-directory-server
 ```
 
@@ -105,6 +105,7 @@ Open `http://127.0.0.1:8000`. Keep the volume read-only unless optional uploads 
 | `MAX_UPLOAD_BYTES` | `104857600` | Maximum upload body size in bytes |
 | `SHOW_HIDDEN` | `false` | Include dotfiles and dot-directories when `true` |
 | `LOG_REQUESTS` | `false` | Log client address, method, path, status, and duration when `true` |
+| `COOKIE_SECURE` | `false` | Mark the session cookie `Secure`; also happens when the request is HTTPS or `X-Forwarded-Proto` is `https` |
 
 Bearer clients can send `Authorization: Bearer <token>`. Access tokens are never accepted in URLs or written to request logs.
 
@@ -115,6 +116,7 @@ Bearer clients can send `Authorization: Bearer <token>`. Access tokens are never
 - Hidden path segments are blocked unless explicitly enabled.
 - Uploads are disabled by default, size-limited, and cannot overwrite an existing file.
 - Browser sessions use `HttpOnly` and `SameSite=Strict` cookies.
+- Failed browser logins are limited to five attempts per client in 15 minutes.
 - Security headers restrict framing to same-origin previews, block cross-origin resource use, and prevent unexpected content sniffing.
 - The unauthenticated health endpoint exposes only `{ "status": "ready" }`.
 

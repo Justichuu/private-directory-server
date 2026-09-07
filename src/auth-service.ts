@@ -16,7 +16,13 @@ function readCookie(request: IncomingMessage, name: string): string | null {
   if (cookieHeader === undefined) return null;
   for (const field of cookieHeader.split(";")) {
     const [rawName, ...rawValue] = field.trim().split("=");
-    if (rawName === name) return decodeURIComponent(rawValue.join("="));
+    if (rawName === name) {
+      try {
+        return decodeURIComponent(rawValue.join("="));
+      } catch {
+        return null;
+      }
+    }
   }
   return null;
 }
@@ -30,14 +36,27 @@ export function isAuthenticated(request: IncomingMessage, accessToken: string | 
   return session !== null && safeEqual(session, digest(accessToken).toString("hex"));
 }
 
+export function cookieSecurityFlags(secure: boolean): string {
+  return `HttpOnly; SameSite=Strict; Path=/${secure ? "; Secure" : ""}`;
+}
+
+/** True when the operator forced Secure cookies or the request arrived over TLS. */
+export function shouldUseSecureCookie(request: IncomingMessage, cookieSecure: boolean): boolean {
+  if (cookieSecure) return true;
+  const forwarded = request.headers["x-forwarded-proto"];
+  const proto = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(",")[0]?.trim().toLowerCase();
+  if (proto === "https") return true;
+  return Boolean((request.socket as { encrypted?: boolean }).encrypted);
+}
+
 /** Creates an opaque, HTTP-only browser session cookie derived from the configured token. */
-export function createSessionCookie(accessToken: string): string {
-  return `${SESSION_COOKIE}=${digest(accessToken).toString("hex")}; HttpOnly; SameSite=Strict; Path=/; Max-Age=86400`;
+export function createSessionCookie(accessToken: string, secure = false): string {
+  return `${SESSION_COOKIE}=${digest(accessToken).toString("hex")}; ${cookieSecurityFlags(secure)}; Max-Age=86400`;
 }
 
 /** Clears the browser session cookie. */
-export function clearSessionCookie(): string {
-  return `${SESSION_COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0`;
+export function clearSessionCookie(secure = false): string {
+  return `${SESSION_COOKIE}=; ${cookieSecurityFlags(secure)}; Max-Age=0`;
 }
 
 /** Compares a submitted login token without leaking its length or mismatch position. */

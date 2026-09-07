@@ -1,13 +1,14 @@
 import { createReadStream, promises as fs } from "node:fs";
 import { type IncomingMessage, type ServerResponse } from "node:http";
 import path from "node:path";
-import { clearSessionCookie, createSessionCookie, isAuthenticated, verifyAccessToken } from "./auth-service";
+import { clearSessionCookie, createSessionCookie, isAuthenticated, shouldUseSecureCookie, verifyAccessToken } from "./auth-service";
 import { getContentType } from "./content-types";
 import { listDirectory } from "./directory-service";
 import { securityHeaders, sendError, sendJson } from "./http-utils";
 import { resolveSafePath } from "./path-service";
 import { parseByteRange } from "./range-service";
 import { BodyLimitError, readBody, readJsonBody } from "./request-body";
+import { loginClientId, LoginRateLimiter } from "./login-rate-limit";
 import { searchDirectory } from "./search-service";
 import { type ServerConfig, type SessionInfo } from "./types";
 
@@ -84,6 +85,8 @@ async function serveSearch(response: ServerResponse, url: URL, config: ServerCon
   if (query.length < 2) return sendJson(response, 400, { error: "Search requires at least two characters." });
   const resolution = await resolveDirectory(url, config);
   if (resolution.status !== "resolved") return sendJson(response, resolution.status === "forbidden" ? 403 : 404, { error: resolution.reason });
+  const stats = await fs.stat(resolution.absolutePath);
+  if (!stats.isDirectory()) return sendJson(response, 400, { error: "The requested path is not a directory." });
   const items = await searchDirectory({ absolutePath: resolution.absolutePath, relativePath: resolution.relativePath, query, showHidden: config.showHidden });
   sendJson(response, 200, { path: resolution.relativePath, query, items });
 }
@@ -94,15 +97,28 @@ async function serveSharedFile(request: IncomingMessage, response: ServerRespons
   await serveFile({ request, response, filePath: resolution.absolutePath, disposition });
 }
 
-async function handleLogin(request: IncomingMessage, response: ServerResponse, config: ServerConfig): Promise<void> {
+async function handleLogin(request: IncomingMessage, response: ServerResponse, config: ServerConfig, limiter: LoginRateLimiter): Promise<void> {
   if (config.accessToken === null) return sendJson(response, 200, { ok: true });
+  const clientId = loginClientId(request.socket.remoteAddress);
+  const retryAfter = limiter.retryAfterSeconds(clientId);
+  if (retryAfter !== null) {
+    response.setHeader("Retry-After", String(retryAfter));
+    sendJson(response, 429, { error: "Too many login attempts. Try again later." });
+    return;
+  }
   try {
     const payload = await readJsonBody(request);
     const submittedToken = typeof payload === "object" && payload !== null && "token" in payload && typeof payload.token === "string" ? payload.token : null;
-    if (submittedToken === null || !verifyAccessToken(submittedToken, config.accessToken)) return sendJson(response, 401, { error: "Invalid access token." });
-    response.setHeader("Set-Cookie", createSessionCookie(config.accessToken));
+    if (submittedToken === null || !verifyAccessToken(submittedToken, config.accessToken)) {
+      limiter.recordFailure(clientId);
+      sendJson(response, 401, { error: "Invalid access token." });
+      return;
+    }
+    limiter.recordSuccess(clientId);
+    response.setHeader("Set-Cookie", createSessionCookie(config.accessToken, shouldUseSecureCookie(request, config.cookieSecure)));
     sendJson(response, 200, { ok: true });
   } catch (error: unknown) {
+    limiter.recordFailure(clientId);
     sendJson(response, error instanceof BodyLimitError ? 413 : 400, { error: error instanceof Error ? error.message : "Invalid login request." });
   }
 }
@@ -139,6 +155,7 @@ function sessionInfo(request: IncomingMessage, config: ServerConfig): SessionInf
 
 /** Creates the authenticated request handler for one immutable server configuration. */
 export function createRequestHandler(config: ServerConfig): (request: IncomingMessage, response: ServerResponse) => void {
+  const loginLimiter = new LoginRateLimiter();
   return (request, response): void => {
     addRequestLogging(request, response, config.logRequests);
     void (async (): Promise<void> => {
@@ -146,9 +163,9 @@ export function createRequestHandler(config: ServerConfig): (request: IncomingMe
       if (url === null) return sendError(response, 400, "Invalid request URL.");
       if (url.pathname === "/api/health" && request.method === "GET") return sendJson(response, 200, { status: "ready" });
       if (url.pathname === "/api/session" && request.method === "GET") return sendJson(response, 200, sessionInfo(request, config));
-      if (url.pathname === "/api/session" && request.method === "POST") return handleLogin(request, response, config);
+      if (url.pathname === "/api/session" && request.method === "POST") return handleLogin(request, response, config, loginLimiter);
       if (url.pathname === "/api/session" && request.method === "DELETE") {
-        response.setHeader("Set-Cookie", clearSessionCookie());
+        response.setHeader("Set-Cookie", [clearSessionCookie(false), clearSessionCookie(true)]);
         return sendJson(response, 200, { ok: true });
       }
       if (url.pathname === "/" || url.pathname.startsWith("/assets/")) return servePublicAsset(request, response, url.pathname, config);

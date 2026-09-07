@@ -19,11 +19,13 @@
 
 ### Path confinement
 
-Requested paths are URL-decoded, normalized, resolved against the real root, and checked with `path.relative`. Hidden segments are rejected by default. Existing targets are resolved through `realpath`, preventing symlinks from escaping the root. Upload paths normalize both slash styles before checking the real parent directory.
+Requested paths are URL-decoded, normalized, resolved against the real root, and checked with `path.relative`. Hidden segments are rejected on both the requested path and the real path, so a symlink cannot expose a dotfile. Existing targets are resolved through `realpath`, preventing symlinks from escaping the root. Upload paths normalize both slash styles before checking the real parent directory.
 
 ### Authentication
 
-Tokens are compared through fixed-size SHA-256 digests using constant-time comparison. Browser login creates an opaque digest cookie with `HttpOnly`, `SameSite=Strict`, a root path, and a 24-hour lifetime. Bearer tokens are supported for API clients. Tokens are never accepted in query strings.
+Tokens are compared through fixed-size SHA-256 digests using constant-time comparison. Browser login creates an opaque digest cookie with `HttpOnly`, `SameSite=Strict`, a root path, and a 24-hour lifetime. The cookie also receives `Secure` when `COOKIE_SECURE=true`, when the socket is TLS, or when the immediate `X-Forwarded-Proto` value is `https`. Direct HTTP (the default) omits `Secure` so a LAN browser can store the session. Bearer tokens are supported for API clients. Tokens are never accepted in query strings.
+
+The Windows tray launcher keeps the generated LAN token in `gui/settings.txt` as DPAPI ciphertext for the current account (`AccessTokenProtected=`). The file ACL allows only that account. Other local accounts, and a copied settings file on another machine, cannot recover the token.
 
 ### Write control
 
@@ -31,6 +33,7 @@ Uploads are absent in `read-only` mode. Upload mode requires a complete body bel
 
 ### Resource bounds
 
+- Failed browser logins are limited to five attempts per client address in a 15-minute window; further attempts return 429 until the window expires or a later successful login clears the record.
 - Login JSON is limited to 8 KiB.
 - Upload size is configurable and defaults to 100 MiB.
 - Search returns at most 200 matches, descends at most 20 levels, and examines at most 10,000 entries.
@@ -39,7 +42,7 @@ Uploads are absent in `read-only` mode. Upload mode requires a complete body bel
 
 ## Known limits
 
-- The application serves HTTP and does not terminate TLS.
+- The application serves HTTP and does not terminate TLS. A trusted HTTPS reverse proxy should send `X-Forwarded-Proto: https` or set `COOKIE_SECURE=true` so the session cookie is not written for later HTTP use.
 - It has no user accounts, per-directory ACLs, token rotation protocol, or persistent audit database.
 - Localhost mode does not require a token unless one is configured.
 - Request logging is operational telemetry, not tamper-resistant auditing.

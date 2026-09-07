@@ -9,6 +9,7 @@ export interface ServerConfig {
   readonly accessMode: "read-only" | "upload";
   readonly logRequests: boolean;
   readonly maxUploadBytes: number;
+  readonly cookieSecure: boolean;
 }
 
 /** A serializable item returned by the directory-listing API. */

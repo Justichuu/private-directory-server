@@ -63,5 +63,6 @@ export function loadConfig(
     accessMode: parseAccessMode(environment.ACCESS_MODE),
     logRequests: parseBoolean(environment.LOG_REQUESTS),
     maxUploadBytes: parsePositiveInteger(environment.MAX_UPLOAD_BYTES, DEFAULT_MAX_UPLOAD_BYTES, "MAX_UPLOAD_BYTES"),
+    cookieSecure: parseBoolean(environment.COOKIE_SECURE),
   };
 }

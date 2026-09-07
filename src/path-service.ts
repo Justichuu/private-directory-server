@@ -52,9 +52,14 @@ export async function resolveSafePath(options: {
     return { status: "forbidden", reason: "Symbolic links outside the shared directory are blocked." };
   }
 
+  const publishedRelative = path.relative(rootPath, realCandidate).split(path.sep).join("/");
+  if (!options.showHidden && containsHiddenSegment(publishedRelative)) {
+    return { status: "forbidden", reason: "Hidden paths are not available." };
+  }
+
   return {
     status: "resolved",
     absolutePath: realCandidate,
-    relativePath: path.relative(rootPath, realCandidate).split(path.sep).join("/"),
+    relativePath: publishedRelative,
   };
 }

@@ -11,6 +11,19 @@ This project follows semantic versioning. Dates use the ISO `YYYY-MM-DD` format.
 - Double-click wrappers (`start`/`test`/`menu` `.cmd` and `.sh`) for anyone who would rather not use a terminal.
 - A Windows system-tray desktop launcher (`gui/Launcher.cs`, built with the C# compiler bundled in .NET Framework — no new npm dependency): Start/Stop, Open in Browser, choose the shared folder, view the log, and exit, with no console window ever shown. Build it locally with `gui\build.cmd`, or download it from a GitHub release.
 - "Show Phone Address / QR Code..." in the tray app: turns on network access (with a confirmation prompt and an auto-generated access token, per the existing non-loopback token requirement) and shows a scannable QR code plus copyable address/token for opening the server on a phone on the same Wi-Fi network.
+- `COOKIE_SECURE` and automatic `Secure` session cookies when the request is TLS or `X-Forwarded-Proto` is `https`.
+
+### Security
+
+- The tray launcher stores the LAN token as DPAPI ciphertext for the current Windows account and restricts `gui/settings.txt` to that account. A leftover plaintext `AccessToken=` line is migrated on load.
+- Failed browser logins are limited to five attempts per client address in a 15-minute window.
+- Session cookies stay sendable on direct HTTP and gain `Secure` behind a TLS proxy or `COOKIE_SECURE=true`.
+- Hidden-file policy now applies to the real path, so a symlink cannot expose a dotfile.
+- HTTP tests cover symlink escape. Malformed session cookies return 401 instead of 500. Logout clears both Secure and non-Secure cookies. Failed-login records expire out of memory with the window.
+
+### Changed
+
+- Package metadata names ChuuMind as the project home.
 
 ## 1.1.0 - 2026-08-02
 
