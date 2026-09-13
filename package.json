@@ -23,7 +23,7 @@
     "menu": "node scripts/ensure-deps.js && npm run build && node dist/scripts/menu.js"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@types/node": "^22.20.2",
     "typescript": "^5.9.2"
   }
 }
