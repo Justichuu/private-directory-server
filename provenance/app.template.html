@@ -1,0 +1,332 @@
+<title>Provenance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --paper:#edeff2; --card:#f8f9fb; --sunk:#e3e7ec;
+    --ink:#171a20; --muted:#5d6470; --line:#d3d8de;
+    --accent:#1f7a6b; --accent-soft:#d9ebe7;
+    --good:#2d6a4f; --warn:#8a6a00; --crit:#a3301f;
+    --good-bg:#dcece4; --warn-bg:#f2e9cf; --crit-bg:#f6ddd8;
+    --shadow:0 1px 2px rgba(23,26,32,.07);
+    --sans:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+    --cond:"IBM Plex Sans Condensed","IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+    --sat:1;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --paper:#0f1216; --card:#171b21; --sunk:#12161b;
+      --ink:#e6e9ee; --muted:#98a1ad; --line:#272d36;
+      --accent:#4fd0ba; --accent-soft:#15302d;
+      --good:#57b98d; --warn:#d6a422; --crit:#e0705c;
+      --good-bg:#142b22; --warn-bg:#2e2611; --crit-bg:#331b16;
+      --shadow:0 1px 2px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#0f1216; --card:#171b21; --sunk:#12161b;
+    --ink:#e6e9ee; --muted:#98a1ad; --line:#272d36;
+    --accent:#4fd0ba; --accent-soft:#15302d;
+    --good:#57b98d; --warn:#d6a422; --crit:#e0705c;
+    --good-bg:#142b22; --warn-bg:#2e2611; --crit-bg:#331b16;
+    --shadow:0 1px 2px rgba(0,0,0,.4);
+  }
+
+  *{box-sizing:border-box}
+  body{background:var(--paper);color:var(--ink);font:400 15px/1.55 var(--sans);
+       margin:0;padding-block:0 44px;padding-left:16px;padding-right:16px;
+       -webkit-text-size-adjust:100%}
+  .shell{max-width:680px;margin:0 auto}
+  h1,h2,h3{text-wrap:balance;margin:0}
+  a{color:var(--accent)}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+  /* ---- masthead: the gauge is the header ---- */
+  header{padding-block:22px 14px;border-bottom:2px solid var(--ink)}
+  .eyebrow{font:600 11px/1 var(--cond);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  h1{font:700 30px/1.05 var(--cond);letter-spacing:-.01em;margin-top:6px}
+  .sub{color:var(--muted);font-size:13.5px;margin-top:6px}
+
+  .gauge{margin-top:16px;background:var(--card);border:1px solid var(--line);
+         border-radius:4px;padding:12px 13px;box-shadow:var(--shadow)}
+  .worn{font:600 13px/1.3 var(--mono);color:var(--accent);
+        font-variant-numeric:tabular-nums;word-break:break-word}
+  .bar{height:5px;background:var(--sunk);border-radius:99px;margin-top:9px;overflow:hidden}
+  .bar i{display:block;height:100%;background:var(--accent);border-radius:99px;
+         transition:width .6s ease}
+  .gauge p{margin:9px 0 0;font-size:12.5px;color:var(--muted)}
+
+  /* ---- sections ---- */
+  section{margin-top:30px}
+  h2{font:700 12px/1 var(--cond);letter-spacing:.13em;text-transform:uppercase;
+     color:var(--muted);padding-bottom:7px;border-bottom:1px solid var(--line)}
+  .count{color:var(--ink);font-family:var(--mono);font-weight:600}
+
+  /* ---- decisions: the job of the page ---- */
+  .stack{display:flex;flex-direction:column;gap:14px;margin-top:14px}
+  .ask{background:var(--card);border:1px solid var(--line);border-radius:5px;
+       padding:14px 14px 12px;box-shadow:var(--shadow);border-left:3px solid var(--muted)}
+  .ask.critical{border-left-color:var(--crit)}
+  .ask h3{font:600 16.5px/1.3 var(--sans)}
+  .ask .why{color:var(--muted);font-size:13.5px;margin:8px 0 0}
+  .opts{display:flex;flex-direction:column;gap:7px;margin-top:12px}
+  button.opt{display:block;width:100%;text-align:left;font:500 14px/1.35 var(--sans);
+    color:var(--ink);background:var(--sunk);border:1px solid var(--line);
+    border-radius:4px;padding:10px 11px;cursor:pointer;transition:border-color .15s,background .15s}
+  button.opt:hover:not(:disabled){border-color:var(--accent)}
+  button.opt[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);
+    box-shadow:inset 3px 0 0 var(--accent)}
+  button.opt:disabled{cursor:default;opacity:.75}
+  button.opt .n{display:block;color:var(--muted);font-size:12.5px;margin-top:3px}
+  .answered{margin:10px 0 0;font:600 12px/1.3 var(--mono);color:var(--good)}
+
+  /* ---- repositories ---- */
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:13px}
+  button.chip{font:600 11.5px/1 var(--cond);letter-spacing:.07em;text-transform:uppercase;
+    color:var(--muted);background:transparent;border:1px solid var(--line);
+    border-radius:99px;padding:7px 11px;cursor:pointer}
+  button.chip[aria-pressed="true"]{color:var(--paper);background:var(--ink);border-color:var(--ink)}
+
+  ul.repos{list-style:none;margin:12px 0 0;padding:0;
+           display:flex;flex-direction:column;gap:1px;
+           background:var(--line);border:1px solid var(--line);border-radius:5px;overflow:hidden}
+  ul.repos li{background:var(--card);padding:11px 13px}
+  .row{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+  .name{font:600 15px/1.25 var(--sans)}
+  .rel{font:400 11.5px/1.3 var(--mono);color:var(--muted);word-break:break-all}
+  .subject{color:var(--muted);font-size:13px;margin-top:4px;
+           overflow-wrap:anywhere}
+  .meta{margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;
+        filter:saturate(var(--sat))}
+  .tag{font:600 11px/1 var(--mono);letter-spacing:.02em;border-radius:3px;padding:4px 6px;
+       white-space:nowrap}
+  .t-clean{color:var(--good);background:var(--good-bg)}
+  .t-dirty{color:var(--warn);background:var(--warn-bg)}
+  .t-machine{color:var(--crit);background:var(--crit-bg)}
+  .t-hash{color:var(--muted);background:var(--sunk)}
+
+  .greyed{display:none;margin-top:12px;background:var(--sunk);border:1px dashed var(--line);
+          border-radius:4px;padding:11px 12px;font-size:13px;color:var(--muted)}
+  .greyed.on{display:block}
+
+  footer{margin-top:34px;padding-top:14px;border-top:1px solid var(--line);
+         font-size:12.5px;color:var(--muted)}
+  footer code{font-family:var(--mono);font-size:12px}
+  .none{color:var(--muted);font-size:13.5px;margin-top:12px}
+</style>
+
+<div class="shell">
+<header>
+  <div class="eyebrow">Private directory server &middot; addon</div>
+  <h1>Provenance</h1>
+  <p class="sub">What is actually true across every repository on the machine, and what is waiting on you. Read it on the phone, answer it on the phone.</p>
+
+  <div class="gauge">
+    <div class="worn" id="worn">reading the snapshot&hellip;</div>
+    <div class="bar"><i id="bar" style="width:100%"></i></div>
+    <p id="taken">&nbsp;</p>
+  </div>
+</header>
+
+<section id="asks-wrap">
+  <h2>Waiting on you &middot; <span class="count" id="ask-count">0</span></h2>
+  <div class="stack" id="asks"></div>
+  <p class="none" id="ask-note"></p>
+</section>
+
+<section>
+  <h2>Repositories &middot; <span class="count" id="repo-count">0</span></h2>
+  <div class="chips" id="filters">
+    <button type="button" class="chip" id="f-all" data-f="all" aria-pressed="true">All</button>
+    <button type="button" class="chip" id="f-machine" data-f="machine" aria-pressed="false">Machine signature</button>
+    <button type="button" class="chip" id="f-dirty" data-f="dirty" aria-pressed="false">Uncommitted</button>
+    <button type="button" class="chip" id="f-remote" data-f="remote" aria-pressed="false">On GitHub</button>
+  </div>
+  <div class="greyed" id="greyed">The state colours have gone grey. This snapshot is old enough that you can tell there was something to see, not what it said. Run <code>node provenance/scan.mjs</code> and publish again.</div>
+  <ul class="repos" id="repos"></ul>
+</section>
+
+<footer>
+  <p>This page is a snapshot. Nothing on it updates by itself, and it cannot reach the machine that made it. That is why it fades: a record that reads as current when it is not is the failure the Worn paper describes, so this one reports its own age instead of hiding it. Half-life one hour.</p>
+  <p>Source lives at <code>private-directory-server/provenance</code>. <code>scan.mjs</code> reads git and writes <code>state.json</code>; it never writes to a repository and never reaches the network.</p>
+</footer>
+</div>
+
+<script>
+const STATE = /*__STATE__*/{"generated":"","repos":[],"totals":{"repos":0,"dirty":0,"machine":0}};
+const ASKS = /*__DECISIONS__*/[];
+
+/* ---------- the gauge: this page's own decay ---------- */
+const HALFLIFE_MIN = 60;
+function ageMinutes(){
+  const t = Date.parse(STATE.generated);
+  if (!t) return 0;
+  return Math.max(0, (Date.now() - t) / 60000);
+}
+function fmtAge(m){
+  if (m < 1) return "less than a minute";
+  if (m < 60) return Math.round(m) + (Math.round(m) === 1 ? " minute" : " minutes");
+  const h = m / 60;
+  if (h < 48) return (h < 10 ? h.toFixed(1) : Math.round(h)) + (Math.round(h) === 1 ? " hour" : " hours");
+  return Math.round(h / 24) + " days";
+}
+function tick(){
+  const m = ageMinutes();
+  const transmittance = Math.pow(0.5, m / HALFLIFE_MIN);
+  const faded = Math.round((1 - transmittance) * 100);
+  document.documentElement.style.setProperty("--sat", transmittance.toFixed(3));
+  document.getElementById("worn").textContent =
+    "[WORN: " + faded + "% faded, " + fmtAge(m) + " old]";
+  document.getElementById("bar").style.width = (transmittance * 100).toFixed(1) + "%";
+  document.getElementById("greyed").classList.toggle("on", transmittance < 0.25);
+  const d = new Date(STATE.generated);
+  document.getElementById("taken").textContent = isNaN(d) ? "No snapshot recorded." :
+    "Scanned " + d.toLocaleString(undefined,{weekday:"short",hour:"numeric",minute:"2-digit",
+      month:"short",day:"numeric"}) + ". " + STATE.totals.repos + " repositories.";
+}
+
+/* ---------- repositories ---------- */
+let filter = "all";
+function matches(r){
+  if (filter === "machine") return r.machineAuthor > 0 || r.machineTrailer > 0;
+  if (filter === "dirty")   return r.dirty > 0;
+  if (filter === "remote")  return !!r.remote;
+  return true;
+}
+function tag(cls, text){
+  const s = document.createElement("span");
+  s.className = "tag " + cls; s.textContent = text; return s;
+}
+function renderRepos(){
+  const ul = document.getElementById("repos");
+  ul.textContent = "";
+  const list = (STATE.repos || []).filter(matches);
+  document.getElementById("repo-count").textContent = list.length;
+  if (!list.length){
+    const li = document.createElement("li");
+    li.className = "subject"; li.textContent = "Nothing matches this filter.";
+    ul.appendChild(li); return;
+  }
+  for (const r of list){
+    const li = document.createElement("li");
+    const row = document.createElement("div"); row.className = "row";
+    const n = document.createElement("span"); n.className = "name"; n.textContent = r.name;
+    const p = document.createElement("span"); p.className = "rel";
+    p.textContent = r.remote || r.rel;
+    row.append(n, p); li.appendChild(row);
+
+    if (r.subject){
+      const s = document.createElement("div"); s.className = "subject";
+      s.textContent = r.subject; li.appendChild(s);
+    }
+    const meta = document.createElement("div"); meta.className = "meta";
+    const sig = (r.machineAuthor || 0) + (r.machineTrailer || 0);
+    if (sig) meta.appendChild(tag("t-machine", sig + " machine signature" + (sig === 1 ? "" : "s")));
+    meta.appendChild(r.dirty ? tag("t-dirty", r.dirty + " uncommitted")
+                             : tag("t-clean", "clean"));
+    if (r.hash) meta.appendChild(tag("t-hash", r.branch + " @ " + r.hash));
+    li.appendChild(meta);
+    ul.appendChild(li);
+  }
+}
+for (const b of document.querySelectorAll("#filters .chip")){
+  b.addEventListener("click", () => {
+    filter = b.dataset.f;
+    for (const o of document.querySelectorAll("#filters .chip"))
+      o.setAttribute("aria-pressed", String(o === b));
+    renderRepos();
+  });
+}
+
+/* ---------- the decisions ---------- */
+let db = null;
+const answers = new Map();
+
+function renderAsks(){
+  const wrap = document.getElementById("asks");
+  wrap.textContent = "";
+  const open = ASKS.filter(a => !answers.has(a.id));
+  document.getElementById("ask-count").textContent = open.length;
+  for (const a of ASKS){
+    const card = document.createElement("div");
+    card.className = "ask" + (a.weight === "critical" ? " critical" : "");
+    const h = document.createElement("h3"); h.textContent = a.title;
+    const why = document.createElement("p"); why.className = "why"; why.textContent = a.detail;
+    card.append(h, why);
+
+    const opts = document.createElement("div"); opts.className = "opts";
+    const chosen = answers.get(a.id);
+    for (const o of a.options){
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "opt"; b.id = "opt-" + a.id + "-" + o.key;
+      b.setAttribute("aria-pressed", String(chosen === o.key));
+      b.disabled = !db;
+      const l = document.createElement("span"); l.textContent = o.label; b.appendChild(l);
+      if (o.note){ const n = document.createElement("span"); n.className = "n"; n.textContent = o.note; b.appendChild(n); }
+      b.addEventListener("click", () => choose(a.id, o.key));
+      opts.appendChild(b);
+    }
+    card.appendChild(opts);
+    if (chosen){
+      const done = document.createElement("p"); done.className = "answered";
+      done.textContent = "Answered. I read this back from here.";
+      card.appendChild(done);
+    }
+    wrap.appendChild(card);
+  }
+}
+async function choose(id, key){
+  if (!db) return;
+  const prev = answers.get(id);
+  answers.set(id, key); renderAsks();
+  try {
+    await db.doc("decisions/" + id).set({ choice: key, at: new Date().toISOString() });
+  } catch {
+    if (prev === undefined) answers.delete(id); else answers.set(id, prev);
+    renderAsks();
+    document.getElementById("ask-note").textContent =
+      "That answer did not save. Nothing was recorded, so tap it again.";
+  }
+}
+
+tick();
+renderRepos();
+renderAsks();
+setInterval(tick, 30000);
+
+(async () => {
+  const note = document.getElementById("ask-note");
+  try {
+    db = await window.claude?.use?.("db");
+  } catch { db = null; }
+  if (!db){
+    note.textContent = "Answers cannot be saved in this view, so the buttons are off. Everything above still reads correctly.";
+    return;
+  }
+  const readOnce = async () => {
+    for (const a of ASKS){
+      try {
+        const snap = await db.doc("decisions/" + a.id).get();
+        const body = snap && snap.exists ? snap.data() : null;
+        if (body && body.choice) answers.set(a.id, body.choice);
+      } catch {}
+    }
+  };
+  try {
+    db.collection("decisions").onSnapshot(snap => {
+      answers.clear();
+      for (const d of snap.docs){
+        const body = d.data();
+        if (body && body.choice) answers.set(d.id, body.choice);
+      }
+      renderAsks();
+    }, () => {});
+  } catch {
+    await readOnce();
+  }
+  renderAsks();
+})();
+</script>

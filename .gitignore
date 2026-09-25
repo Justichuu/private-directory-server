@@ -9,3 +9,11 @@ npm-debug.log*
 Thumbs.db
 /Private Directory Server.exe
 gui/settings.txt
+
+# Provenance addon: everything data-shaped stays on the machine.
+# state.json names every repository on the disk, app.html embeds it, and
+# decisions.json describes unresolved private decisions. This remote is public.
+provenance/state.json
+provenance/app.html
+provenance/decisions.json
+provenance/preview/
