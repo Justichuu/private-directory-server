@@ -24,7 +24,7 @@ node provenance/build.mjs     # writes app.html from the template
 
 Then publish `app.html`. That is the whole loop.
 
-`scan.mjs` runs `git` read-only against every repository it finds under `F:\Code`
+`scan.mjs` runs `git` read-only against every repository it finds under the workspace (the nearest folder above it holding `STONE.md`, or `PROVENANCE_ROOT`)
 to depth three. It never writes to a repository, never reaches the network, and
 never reads a file's contents. Point it somewhere else with `PROVENANCE_ROOT`.
 

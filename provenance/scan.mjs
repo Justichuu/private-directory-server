@@ -1,5 +1,6 @@
 /**
- * Reads the real state of every repository under F:\Code and writes state.json.
+ * Reads the real state of every repository under the workspace and writes state.json.
+ * The workspace is PROVENANCE_ROOT, or the nearest folder above this one holding STONE.md.
  * Nothing here reaches the network. Nothing here writes to any repository.
  * Run it, then publish app.html. The page shows only what this file recorded.
  */
@@ -7,7 +8,13 @@ import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const ROOT = process.env.PROVENANCE_ROOT || 'F:/Code';
+function workspace(dir) {
+  for (let here = dir; ; here = path.dirname(here)) {
+    if (fs.existsSync(path.join(here, 'STONE.md')) && fs.existsSync(path.join(here, 'local'))) return here;
+    if (path.dirname(here) === here) return process.cwd();
+  }
+}
+const ROOT = process.env.PROVENANCE_ROOT || workspace(import.meta.dirname);
 const OUT = path.join(import.meta.dirname, 'state.json');
 
 const git = (cwd, args) => {
@@ -56,7 +63,7 @@ const repos = findRepos(ROOT).map(dir => {
 
 const state = {
   generated: new Date().toISOString(),
-  root: ROOT,
+  // Where the workspace sits is never written: the page is published.
   repos,
   totals: {
     repos: repos.length,
