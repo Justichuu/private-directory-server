@@ -17,3 +17,11 @@ provenance/state.json
 provenance/app.html
 provenance/decisions.json
 provenance/preview/
+
+# Folders served to a phone for review. chuuwork/ is a local mirror of the
+# ChuuMind site so its pages can be read on a device while they are being
+# worked on; public/tools/ is an older copy of the same idea. Both are other
+# projects' bytes sitting in this working tree and neither belongs to this
+# repository. Delete them freely; the server only needs whatever it is pointed at.
+/chuuwork/
+/public/tools/
