@@ -1,0 +1,12 @@
+[
+  {
+    "id": "example-decision",
+    "weight": "critical",
+    "title": "Say here what only a person can settle",
+    "detail": "Describe what was found and what it costs, in plain words. Copy decisions.example.json to decisions.json and write your own. decisions.json is ignored by git on purpose, because a real decision usually names something private.",
+    "options": [
+      { "key": "yes", "label": "Do it", "note": "What doing it costs." },
+      { "key": "no", "label": "Leave it", "note": "" }
+    ]
+  }
+]

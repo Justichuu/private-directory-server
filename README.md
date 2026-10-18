@@ -1,5 +1,29 @@
 # Private Directory Server
 
+## Read order
+
+```
+README.md > docs/AI_COLLABORATION.md > docs/ARCHITECTURE.md > docs/SECURITY_MODEL.md > docs/DEVELOPMENT.md > docs/CONFIGURATION.md
+```
+
+Read left to right. Do not start in the middle.
+
+**This chain is the interface.** An agent parses in order, so the order carries
+meaning the same way the words do. Two rules keep it usable:
+
+1. **Update on every read.** If you read this file and any part of it is now
+   wrong — a path, a version, a link in the chain above — correct it before
+   doing anything else. A stale chain silently misroutes every agent that comes
+   after you, and the cost compounds.
+2. **One in, one out.** The chain is an engine: exactly one entry point, one
+   exit, and whatever parts it needs between them. Reorder, add or remove the
+   internals freely — that is the variable part. Never add a second entry
+   point. Work that must run alongside this is a *separate* engine fed from
+   this one's output; engines may be multitasked in parallel, but a single
+   engine with two mouths has no defined order, and order is the whole point.
+
+---
+
 [![CI](https://github.com/Justichuu/private-directory-server/actions/workflows/ci.yml/badge.svg)](https://github.com/Justichuu/private-directory-server/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
