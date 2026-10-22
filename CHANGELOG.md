@@ -15,6 +15,7 @@ This project follows semantic versioning. Dates use the ISO `YYYY-MM-DD` format.
 
 ### Security
 
+- Provenance snapshots omit remote credentials and local paths. The page builder preserves replacement-token text and escapes HTML parser control characters in embedded data, including older snapshots.
 - The tray launcher stores the LAN token as DPAPI ciphertext for the current Windows account and restricts `gui/settings.txt` to that account. A leftover plaintext `AccessToken=` line is migrated on load.
 - Failed browser logins are limited to five attempts per client address in a 15-minute window.
 - Session cookies stay sendable on direct HTTP and gain `Secure` behind a TLS proxy or `COOKIE_SECURE=true`.
