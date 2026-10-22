@@ -22,7 +22,12 @@ node provenance/scan.mjs      # reads git, writes state.json
 node provenance/build.mjs     # writes app.html from the template
 ```
 
-Then publish `app.html`. That is the whole loop.
+Review the exact generated `app.html` before sharing it. Repository names,
+commit subjects and decisions may describe private work; being visible on this
+page does not authorize publication. The generated files stay Git-ignored.
+The scanner and builder retain only recognized GitHub repository names from
+remote URLs, excluding credentials, query strings and local filesystem paths.
+Other remote hosts are omitted from the page.
 
 `scan.mjs` runs `git` read-only against every repository it finds under the workspace (the nearest folder above it holding `STONE.md`, or `PROVENANCE_ROOT`)
 to depth three. It never writes to a repository, never reaches the network, and

@@ -7,6 +7,7 @@
 import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import {publicRemote} from './remote.mjs';
 
 function workspace(dir) {
   for (let here = dir; ; here = path.dirname(here)) {
@@ -56,7 +57,7 @@ const repos = findRepos(ROOT).map(dir => {
   const machineTrailer = (bodies.match(/co-authored-by:\s*(claude|cursor|copilot)|claude-session:|generated with \[?claude/gi) || []).length;
   return {
     name: path.basename(dir), rel, branch, hash, subject,
-    when, dirty, remote: remote.replace(/^https:\/\/github\.com\//, '').replace(/\.git$/, ''),
+    when, dirty, remote: publicRemote(remote),
     ahead, machineAuthor, machineTrailer
   };
 }).sort((a, b) => (b.when || '').localeCompare(a.when || ''));
