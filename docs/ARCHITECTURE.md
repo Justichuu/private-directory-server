@@ -28,11 +28,13 @@ Configured DIRECTORY_ROOT
 | `src/config.ts` | Parses and validates environment configuration |
 | `src/auth-service.ts` | Constant-time token verification and opaque session cookies |
 | `src/path-service.ts` | URL decoding, hidden-path policy, real-path confinement, and symlink escape prevention |
-| `src/directory-service.ts` | Non-recursive directory listing and metadata |
+| `src/directory-service.ts` | Non-recursive directory listing and metadata, with bounded-concurrency `stat` calls |
 | `src/search-service.ts` | Bounded breadth-first recursive name search without following symlinks |
 | `src/range-service.ts` | Single byte-range parsing and validation |
-| `src/request-body.ts` | Bounded raw and JSON request-body reads |
-| `src/http-utils.ts` | JSON, error, cache, and browser security headers |
+| `src/request-body.ts` | Bounded raw and JSON request-body reads, and streamed-to-disk uploads |
+| `src/cache-service.ts` | ETag/Last-Modified validators and conditional-request (304) evaluation |
+| `src/compression.ts` | Accept-Encoding negotiation and streaming brotli/gzip compressors |
+| `src/http-utils.ts` | JSON, error, cache, and browser security headers, with automatic response compression |
 | `src/client.ts` | Explicit browser state machine, navigation, authentication, search, preview, and upload UI |
 | `scripts/package-release.ts` | Creates a dependency-free runtime directory |
 
@@ -48,7 +50,14 @@ Configured DIRECTORY_ROOT
 
 ## Data ownership
 
-The server has no database. Session cookies are deterministic token digests held by the browser and are not stored server-side. Search indexes are not persisted. Uploads, when enabled, write directly into `DIRECTORY_ROOT` only after the full bounded body is received; existing files are never replaced.
+The server has no database. Session cookies are deterministic token digests held by the browser and are not stored server-side. Search indexes are not persisted. Uploads, when enabled, stream directly to a new file under `DIRECTORY_ROOT`, never buffering the whole body in memory; the transfer is aborted and the partial file removed if it exceeds the configured limit, and existing files are never replaced.
+
+## Performance
+
+- Static assets and shared files send `ETag`/`Last-Modified` validators; a matching conditional `GET`/`HEAD` (`If-None-Match` or `If-Modified-Since`) gets a bodyless `304`, except when the request also carries a `Range` header.
+- JSON API responses and text-based file and asset bodies are compressed with brotli or gzip when the client's `Accept-Encoding` allows it and the payload is large enough to benefit; `Range` responses and already-compressed formats (images, audio, video, PDF) are never compressed.
+- Directory listing and recursive search bound their concurrent filesystem calls instead of firing one `stat` per entry unconditionally.
+- The browser UI batches large directory listings into a single DOM update and paints them incrementally across animation frames, using one delegated click handler instead of one per row.
 
 ## Generated files
 
