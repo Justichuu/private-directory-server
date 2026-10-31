@@ -1,6 +1,8 @@
 # Changelog
 
-This project follows semantic versioning. Dates use the ISO `YYYY-MM-DD` format.
+Versions: ChuuMind's U names (u.1, u.1.0u, U2, then whole numbers, no point); package.json keeps its own
+format. Stages: experimental, then staging (the `staging` branch), then stable (HEAD at the version's tag).
+Dates use the ISO `YYYY-MM-DD` format.
 
 ## Unreleased
 
