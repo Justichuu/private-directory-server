@@ -1,7 +1,7 @@
 # Changelog
 
-Versions: ChuuMind's U names (u.1, u.1.0u, U2, then whole numbers, no point); package.json keeps its own
-format. Stages: experimental, then staging (the `staging` branch), then stable (HEAD at the version's tag).
+Versions: ChuuVersion, tags invented in U's naming: up to 8 faces of 1, 0 and u with a dot (u.1.0u, 1u10.01uu).
+Stages: experimental, staging (waiting for a Review yes), stable (HEAD at a version tag); package.json keeps its format.
 Dates use the ISO `YYYY-MM-DD` format.
 
 ## Unreleased
