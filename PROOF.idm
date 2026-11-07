@@ -1,0 +1,7 @@
+note Private-Directory-Server proof: public and private entry ACL partition conservation
+step all_entries is public_entries plus private_entries
+step visible_unauth is all_entries minus private_entries
+step leaked_private is visible_unauth minus public_entries
+claim visible_unauth same as public_entries
+claim leaked_private same as 0
+note [W] Private-Directory-Server proves unauthenticated queries return only public_entries with 0 leaked private entries, with 2 claims settled true and 0 failed.
