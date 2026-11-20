@@ -1,13 +1,27 @@
 """Verify this repository's mathematical proof (PROOF.idm) using LeadKit (iDoMath + Abacussy + W.R.A. + CHAU)."""
 import importlib.util
+import os
 from pathlib import Path
 
+import pytest
+
 REPO = Path(__file__).resolve().parents[1]
-WORKING = REPO.parent if (REPO.parent / "leadkit").is_dir() else REPO.parents[1]
-PROVE_PY = WORKING / "leadkit" / "src" / "leadkit" / "prove.py"
+
+
+def _find_prove():
+    """LeadKit's prove.py: the LEADKIT_HOME setting first, then a leadkit folder beside this repo or one folder up."""
+    for home in (os.environ.get("LEADKIT_HOME"), REPO.parent / "leadkit", REPO.parents[1] / "leadkit"):
+        if home and (prove := Path(home, "src", "leadkit", "prove.py")).is_file():
+            return prove
+    return None
+
+
+PROVE_PY = _find_prove()
 
 
 def _load_prove():
+    if PROVE_PY is None:
+        pytest.skip("U: LeadKit not found beside this repo; set LEADKIT_HOME to a leadkit checkout")
     spec = importlib.util.spec_from_file_location("leadkit_prove", PROVE_PY)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
